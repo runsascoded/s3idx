@@ -47,7 +47,7 @@ export function Dir({ Prefix }: CommonPrefix): Dir {
     if (Prefix === undefined) {
         throw Error(`CommonPrefix missing Prefix: ${Prefix}`)
     }
-    return { Prefix }
+    return { Prefix: Prefix.replace(/\/$/, '') }
 }
 
 type Metadata = { totalSize: number, LastModified?: LastModified, }
@@ -86,6 +86,7 @@ export class S3Fetcher {
         }
     ) {
         this.bucket = bucket
+        key =  key?.replace(/\/$/, '')
         this.key = key
         this.pageSize = pageSize || 1000
         this.IdentityPoolId = IdentityPoolId

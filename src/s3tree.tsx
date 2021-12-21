@@ -1,7 +1,7 @@
 import React, {useCallback, useEffect, useMemo, useState,} from "react";
 import moment from 'moment'
 import {Link, Location, useLocation, useNavigate, useParams} from "react-router-dom";
-import _ from "lodash";
+import _, {create} from "lodash";
 import useEventListener from "@use-it/event-listener";
 import {Dir, File, Row, S3Fetcher} from "./s3fetcher";
 import {renderSize} from "./size";
@@ -11,14 +11,6 @@ import createPersistedState from "use-persisted-state";
 
 const { ceil, floor, max, min } = Math
 
-function rstrip(s: string, suffix: string): string {
-    if (s.substring(s.length - suffix.length, s.length) == suffix) {
-        return rstrip(s.substring(0, s.length - suffix.length), suffix)
-    } else {
-        return s
-    }
-}
-
 function stripPrefix(prefix: string[], k: string) {
     const pcs = k.split('/')
     if (!_.isEqual(prefix, pcs.slice(0, prefix.length))) {
@@ -27,16 +19,16 @@ function stripPrefix(prefix: string[], k: string) {
     return pcs.slice(prefix.length).join('/')
 }
 
-function DirRow({ Prefix }: Dir, { bucket, location }: { bucket: string, location: Location }) {
-    const prefix = Prefix ? rstrip(Prefix, '/') : ''
-    const pieces = prefix.split('/')
+function DirRow({ Prefix: key }: Dir, { bucket, location }: { bucket: string, location: Location }) {
+    const pieces = key.split('/')
     const name = pieces[pieces.length - 1]
-    const fetcher = new S3Fetcher({bucket, key: prefix})
+    console.log(`fetcher: ${bucket} ${key}`)
+    const fetcher = new S3Fetcher({bucket, key})
     const totalSize = fetcher.cache?.totalSize
     const mtime = fetcher.cache?.LastModified
-    return <tr key={Prefix}>
+    return <tr key={key}>
         <td key="name">
-            <Link to={`/s3/${bucket}/${prefix}`}>{name}</Link>
+            <Link to={`/${bucket}/${key}`}>{name}</Link>
         </td>
         <td key="size">{totalSize ? renderSize(totalSize, 'iec') : ''}</td>
         <td key="mtime">{mtime ? moment(mtime).format('YYYY-MM-DD') : ''}</td>
@@ -59,7 +51,9 @@ function TableRow(row: Row, extra: { bucket: string, location: Location, prefix:
     )
 }
 
+const usePageIdx = createPersistedState('pageIdx')
 const usePageSize = createPersistedState('pageSize')
+const usePaginationInfoInURL = createPersistedState('paginationInfoInURL')
 
 export function S3Tree({}) {
     const params = useParams()
@@ -71,8 +65,6 @@ export function S3Tree({}) {
     const [ bucket, ...keyPieces ] = path.split('/')
     const key = keyPieces.join('/')
 
-    const [ pageIdx, setPageIdx ] = useState(0)
-
     useEffect(() => {
         console.log("Reset pageIdx")
         setPageIdx(0)
@@ -80,7 +72,15 @@ export function S3Tree({}) {
     }, [ path, ] )
 
     //const [ pageSize, setPageSize ] = useQueryParam('p', intParam(20))
-    const [ pageSize, setPageSize ] = usePageSize<number>(20)
+    // const [ pageSize, setPageSize ] = usePageSize<number>(20)
+
+    const [ paginationInfoInURL, setPaginationInfoInURL ] = usePaginationInfoInURL(true)
+    const [ pageIdx, setPageIdx ] = paginationInfoInURL ?
+        useQueryParam('p', intParam(0)) :
+        usePageIdx(0)
+    const [ pageSize, setPageSize ] = paginationInfoInURL ?
+        useQueryParam('s', intParam(20)) :
+        usePageSize<number>(20)
 
     const [ rows, setRows ] = useState<Row[] | null>(null)
     const mismatchedRows = (rows || []).filter(
@@ -112,7 +112,7 @@ export function S3Tree({}) {
             if (e.key == 'u') {
                 if (keyPieces.length) {
                     const newKey = keyPieces.slice(0, keyPieces.length - 1).join('/')
-                    const url = `/s3/${bucket}/${newKey}`
+                    const url = `/${bucket}/${newKey}`
                     console.log(`Navigating to ${url}`)
                     navigate(url)
                 }
@@ -186,7 +186,7 @@ export function S3Tree({}) {
                     {
                         ancestors.map(({ path, name }) => {
                             return <li key={path}>
-                                <Link to={`/s3/${path}`}>{name}</Link>
+                                <Link to={`/${path}`}>{name}</Link>
                             </li>
                         })
                     }
