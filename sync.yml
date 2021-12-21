@@ -1,0 +1,6 @@
+paths:
+  - index.html
+  - favicon.ico
+  - dist/*
+  - assets/*
+dst: s3://ctbk.dev/
