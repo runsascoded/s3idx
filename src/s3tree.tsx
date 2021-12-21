@@ -1,7 +1,7 @@
 import React, {useCallback, useEffect, useMemo, useState,} from "react";
-import moment from 'moment'
-import {Link, Location, useLocation, useNavigate, useParams} from "react-router-dom";
-import _, {create} from "lodash";
+import moment, {Moment} from 'moment'
+import {Link, useNavigate, useParams} from "react-router-dom";
+import _ from "lodash";
 import useEventListener from "@use-it/event-listener";
 import {Dir, File, Row, S3Fetcher} from "./s3fetcher";
 import {renderSize} from "./size";
@@ -14,21 +14,28 @@ const { ceil, floor, max, min } = Math
 function stripPrefix(prefix: string[], k: string) {
     const pcs = k.split('/')
     if (!_.isEqual(prefix, pcs.slice(0, prefix.length))) {
-        throw new Error(`Key ${k} doesn't start with prefix ${prefix.join("/")}`)
+        return k
+        // throw new Error(`Key ${k} doesn't start with prefix ${prefix.join("/")}`)
     }
     return pcs.slice(prefix.length).join('/')
 }
 
-function DirRow({ Prefix: key }: Dir, { bucket, location }: { bucket: string, location: Location }) {
+function DirRow(
+    { Prefix: key }: Dir,
+    { bucket, bucketUrlRoot }: {
+        bucket: string,
+        bucketUrlRoot: boolean,
+    },
+) {
     const pieces = key.split('/')
     const name = pieces[pieces.length - 1]
-    console.log(`fetcher: ${bucket} ${key}`)
     const fetcher = new S3Fetcher({bucket, key})
     const totalSize = fetcher.cache?.totalSize
     const mtime = fetcher.cache?.LastModified
+    const url = bucketUrlRoot ? `/${bucket}/${key}` : `/${key}`
     return <tr key={key}>
         <td key="name">
-            <Link to={`/${bucket}/${key}`}>{name}</Link>
+            <Link to={url}>{name}</Link>
         </td>
         <td key="size">{totalSize ? renderSize(totalSize, 'iec') : ''}</td>
         <td key="mtime">{mtime ? moment(mtime).format('YYYY-MM-DD') : ''}</td>
@@ -43,7 +50,7 @@ function FileRow({ Key, LastModified, Size, }: File, { prefix }: { prefix: strin
     </tr>
 }
 
-function TableRow(row: Row, extra: { bucket: string, location: Location, prefix: string[], }) {
+function TableRow(row: Row, extra: { bucket: string, bucketUrlRoot: boolean, prefix: string[], }) {
     return (
         (row as Dir).Prefix !== undefined
             ? DirRow(row as Dir, extra)
@@ -55,24 +62,19 @@ const usePageIdx = createPersistedState('pageIdx')
 const usePageSize = createPersistedState('pageSize')
 const usePaginationInfoInURL = createPersistedState('paginationInfoInURL')
 
-export function S3Tree({}) {
+export function S3Tree({ bucket = '' }: { bucket: string, }) {
     const params = useParams()
-    console.log(params)
-    const location = useLocation()
     const navigate = useNavigate()
 
     const path = (params['*'] || '').replace(/\/$/, '')
-    const [ bucket, ...keyPieces ] = path.split('/')
+    const pathPieces = path.split('/')
+    const keyPieces = bucket ? pathPieces : pathPieces.slice(1)
+    const bucketUrlRoot = !bucket
+    if (!bucket) {
+        bucket = pathPieces[0]
+    }
     const key = keyPieces.join('/')
-
-    useEffect(() => {
-        console.log("Reset pageIdx")
-        setPageIdx(0)
-        setTotal(null)
-    }, [ path, ] )
-
-    //const [ pageSize, setPageSize ] = useQueryParam('p', intParam(20))
-    // const [ pageSize, setPageSize ] = usePageSize<number>(20)
+    console.log(`Render ${bucket}/${key}: params`, params)
 
     const [ paginationInfoInURL, setPaginationInfoInURL ] = usePaginationInfoInURL(true)
     const [ pageIdx, setPageIdx ] = paginationInfoInURL ?
@@ -83,32 +85,15 @@ export function S3Tree({}) {
         usePageSize<number>(20)
 
     const [ rows, setRows ] = useState<Row[] | null>(null)
-    const mismatchedRows = (rows || []).filter(
-        row => {
-            const Prefix = (row as Dir).Prefix
-            const Key = Prefix ? Prefix : (row as File).Key
-            return Key.substring(0, key.length) != key
-        }
-    )
-    if (mismatchedRows.length) {
-        console.warn(`${mismatchedRows.length} rows don't match bucket/key ${bucket}/${key}:`, mismatchedRows)
-        setRows(null)
-        setPageIdx(0)
-        return <div>hmm…</div>  // TODO
-    }
     const [ s3PageSize, setS3PageSize ] = useState(1000)
     const [ total, setTotal ] = useState<number | null>(null)
-    const numPages = useMemo(
-        () => total === null ? null : ceil(total / pageSize),
-    [ total, pageIdx, pageSize, ]
-    )
+    const numPages = total === null ? null : ceil(total / pageSize)
 
     const cantPrv = pageIdx == 0
     const cantNxt = numPages === null || pageIdx + 1 == numPages
 
     const handler = useCallback(
         (e) => {
-            console.log(e, cantPrv, cantNxt)
             if (e.key == 'u') {
                 if (keyPieces.length) {
                     const newKey = keyPieces.slice(0, keyPieces.length - 1).join('/')
@@ -126,25 +111,22 @@ export function S3Tree({}) {
                 }
             }
         },
-        [params, pageIdx, numPages, ]
+        [ bucket, key, params, pageIdx, numPages, ]
     );
     useEventListener("keypress", handler);
 
-    console.log(`Initializing, bucket ${bucket} key ${key}, page idx ${pageIdx} size ${pageSize} num ${numPages} total ${total}, location.state ${location.state}`)
+    console.log(`** Initializing, bucket ${bucket} key ${key}, page idx ${pageIdx} size ${pageSize} num ${numPages} total ${total}`)
     const [region, setRegion] = useState('us-east-1')
     const fetcher = useMemo(() => {
         console.log(`new fetcher for bucket ${bucket} (key ${key}), current rows:`, rows)
-        return new S3Fetcher({ bucket, region, key, pageSize: s3PageSize, endCb: setTotal })
-    }, [ bucket, region, key ])
-
-    if (total === null && fetcher.cache?.end !== undefined) {
-        setTotal(fetcher.cache?.end)
-    }
+        return new S3Fetcher({ bucket, region, key, pageSize: s3PageSize, /*endCb: setTotal*/ })
+    }, [ bucket, region, key, ])
 
     const start = pageSize * pageIdx
     const end = start + pageSize
 
     const [ totalSize, setTotalSize ] = useState<number | null>(null)
+    const [ lastModified, setLastModified ] = useState<Moment | null>(null)
 
     useEffect(
         () => {
@@ -154,9 +136,35 @@ export function S3Tree({}) {
     )
 
     useEffect(
-        () => { fetcher.computeMetadata().then(( { totalSize }) => setTotalSize(totalSize)) },
+        () => {
+            fetcher
+                .computeMetadata()
+                .then(( { totalSize, LastModified, }) => {
+                    const total = fetcher.cache?.end
+                    console.log(`Setting fetcher metadata: ${total} items, size ${totalSize}, mtime ${LastModified}`)
+                    if (total !== undefined) {
+                        setTotal(total)
+                    }
+                    setTotalSize(totalSize)
+                    if (LastModified) {
+                        setLastModified(moment(LastModified))
+                    }
+                })
+        },
         [ fetcher, bucket, key, ]
     )
+
+    const mismatchedRows = (rows || []).filter(
+        row => {
+            const Prefix = (row as Dir).Prefix
+            const Key = Prefix ? Prefix : (row as File).Key
+            return Key.substring(0, key.length) != key
+        }
+    )
+    if (mismatchedRows.length) {
+        const mismatchedKeys = mismatchedRows.map(r => (r as File).Key || (r as Dir).Prefix)
+        console.warn(`Mismatched keys:`, mismatchedKeys.slice(0, 10))
+    }
 
     if (!rows) {
         return <div>Fetching {bucket}, page {pageIdx}…</div>
@@ -167,12 +175,12 @@ export function S3Tree({}) {
     const ancestors =
         ([] as string[])
             .concat(keyPieces)
-            .reduce<{ path: string, name: string }[]>(
+            .reduce<{ key: string, name: string }[]>(
                 (prvs, nxt) => {
-                    const parent = prvs[prvs.length - 1].path
-                    return prvs.concat([{ path: `${parent}/${nxt}`, name: nxt }])
+                    const parent = prvs[prvs.length - 1].key
+                    return prvs.concat([{ key: parent ? `${parent}/${nxt}` : nxt, name: nxt }])
                 },
-                [ { path: bucket, name: bucket }, ],
+                [ { key: '', name: bucket }, ],
             )
 
     const cache = fetcher.cache
@@ -184,9 +192,11 @@ export function S3Tree({}) {
             <div className="header row">
                 <ul className="breadcrumb">
                     {
-                        ancestors.map(({ path, name }) => {
+                        ancestors.map(({ key, name }) => {
+                            const path = `${bucket}/${key}`
+                            const url = bucketUrlRoot ? `/${bucket}/${key}` : `/${key}`
                             return <li key={path}>
-                                <Link to={`/${path}`}>{name}</Link>
+                                <Link to={url}>{name}</Link>
                             </li>
                         })
                     }
@@ -209,7 +219,7 @@ export function S3Tree({}) {
                     </thead>
                     <tbody>{
                         rows.map(row =>
-                            TableRow(row, { bucket, location, prefix: keyPieces, })
+                            TableRow(row, { bucket, prefix: keyPieces, bucketUrlRoot, })
                         )
                     }
                     </tbody>

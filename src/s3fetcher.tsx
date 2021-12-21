@@ -50,16 +50,17 @@ export function Dir({ Prefix }: CommonPrefix): Dir {
     return { Prefix: Prefix.replace(/\/$/, '') }
 }
 
-type Metadata = { totalSize: number, LastModified?: LastModified, }
+type Metadata = {
+    totalSize: number,
+    LastModified?: LastModified,
+}
 
 export class S3Fetcher {
     bucket: string
     key?: string
     pageSize: number
     pagePromises: Promise<ListObjectsV2Output>[] = []
-    // end: number | undefined = undefined
     endCb?: (end: number) => void
-    totalSize?: number
     s3?: AWS.S3
     IdentityPoolId?: string
     cache?: Cache
@@ -225,26 +226,36 @@ export class S3Fetcher {
             return Promise.resolve(cached as Metadata)
         }
         console.log(`computeMetadata: ${bucket}/${key}; computing`)
-        return this.reduce<Metadata>(
-            dir => new S3Fetcher({ bucket, key: dir.Prefix }).computeMetadata(),
-            ({Size, LastModified,}) => Promise.resolve({ totalSize: Size, LastModified, }),
-            ({ totalSize: ls, LastModified: lm }, { totalSize: rs, LastModified: rm }) => {
-                return {
-                    totalSize: ls + rs,
-                    LastModified: lm === undefined ? rm : rm === undefined ? lm : lm > rm ? lm : rm,
+        return (
+            this.reduce<Metadata>(
+                dir => new S3Fetcher({ bucket, key: dir.Prefix }).computeMetadata(),
+                ({Size, LastModified,}) => Promise.resolve({ totalSize: Size, LastModified }),
+                (
+                    {
+                        totalSize: ls,
+                        LastModified: lm,
+                    }, {
+                        totalSize: rs,
+                        LastModified: rm,
+                    }
+                ) => {
+                    return {
+                        totalSize: ls + rs,
+                        LastModified: lm === undefined ? rm : rm === undefined ? lm : lm > rm ? lm : rm,
+                    }
+                },
+                { totalSize: 0, },
+                ({ totalSize, LastModified, }) => {
+                    if (this.cache) {
+                        console.log(`Setting metadata for ${bucket}/${key}: totalSize ${totalSize}, mtime ${LastModified}`)
+                        this.cache.totalSize = totalSize
+                        this.cache.LastModified = LastModified
+                        this.saveCache()
+                    } else {
+                        console.warn(`No cache for ${bucket}/${key}, dropping metadata: totalSize ${totalSize}, mtime ${LastModified}`)
+                    }
                 }
-            },
-            { totalSize: 0, },
-            ({ totalSize, LastModified }) => {
-                if (this.cache) {
-                    console.log(`Setting metadata for ${bucket}/${key}: totalSize ${totalSize}, mtime ${LastModified}`)
-                    this.cache.totalSize = totalSize
-                    this.cache.LastModified = LastModified
-                    this.saveCache()
-                } else {
-                    console.warn(`No cache for ${bucket}/${key}, dropping metadata: totalSize ${totalSize}, mtime ${LastModified}`)
-                }
-            }
+            )
         )
     }
 
