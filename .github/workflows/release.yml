@@ -9,8 +9,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
+        with:
+          persist-credentials: false
       - name: Install
-        run: npm install
+        run: |
+          pip install awscli s3cmd
+          npm install
       - name: Build
         run: npm run build
       - name: Release
@@ -22,3 +26,12 @@ jobs:
             assets/favicon.ico
             assets/index.css
             dist/bundle.js
+      - name: Permalink
+        run: npm run permalink -- -t ${{github.ref_name}} index.html index-permalinked.html
+      - name: Sync
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_KEY }}
+        run: |
+          aws s3 cp index-permalinked.html s3://s3idx/index.html --acl public-read --cache-control max-age=0,public
+          aws s3 cp index-permalinked.html s3://s3idx/${{github.ref_name}}/index.html --acl public-read
