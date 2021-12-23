@@ -22,9 +22,10 @@ function stripPrefix(prefix: string[], k: string) {
 
 function DirRow(
     { Prefix: key }: Dir,
-    { bucket, bucketUrlRoot }: {
+    { bucket, bucketUrlRoot, urlPrefix }: {
         bucket: string,
         bucketUrlRoot: boolean,
+        urlPrefix?: string,
     },
 ) {
     const pieces = key.split('/')
@@ -32,7 +33,7 @@ function DirRow(
     const fetcher = new S3Fetcher({bucket, key})
     const totalSize = fetcher.cache?.totalSize
     const mtime = fetcher.cache?.LastModified
-    const url = bucketUrlRoot ? `/${bucket}/${key}` : `/${key}`
+    const url = bucketUrlRoot ? `/${bucket}/${key}` : (urlPrefix ? `/${stripPrefix(urlPrefix.split('/'), key)}` :`/${key}`)
     return <tr key={key}>
         <td key="name">
             <Link to={url}>{name}</Link>
@@ -50,7 +51,7 @@ function FileRow({ Key, LastModified, Size, }: File, { prefix }: { prefix: strin
     </tr>
 }
 
-function TableRow(row: Row, extra: { bucket: string, bucketUrlRoot: boolean, prefix: string[], }) {
+function TableRow(row: Row, extra: { bucket: string, bucketUrlRoot: boolean, prefix: string[], urlPrefix?: string, }) {
     return (
         (row as Dir).Prefix !== undefined
             ? DirRow(row as Dir, extra)
@@ -62,19 +63,20 @@ const usePageIdx = createPersistedState('pageIdx')
 const usePageSize = createPersistedState('pageSize')
 const usePaginationInfoInURL = createPersistedState('paginationInfoInURL')
 
-export function S3Tree({ bucket = '' }: { bucket: string, }) {
+export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: string }) {
     const params = useParams()
     const navigate = useNavigate()
 
-    const path = (params['*'] || '').replace(/\/$/, '')
-    const pathPieces = path.split('/')
+    const path = (params['*'] || '').replace(/\/$/, '').replace(/^\//, '')
+    const pathPieces = (prefix ? prefix.split('/') : []).concat(path ? path.split('/') : [])
     const keyPieces = bucket ? pathPieces : pathPieces.slice(1)
     const bucketUrlRoot = !bucket
     if (!bucket) {
         bucket = pathPieces[0]
+        console.log(`Inferred bucket ${bucket} from URL path ${path}`)
     }
     const key = keyPieces.join('/')
-    console.log(`Render ${bucket}/${key}: params`, params)
+    console.log(`Render ${bucket}/${key}: params`, params, ` (prefix ${prefix})`)
 
     const [ paginationInfoInURL, setPaginationInfoInURL ] = usePaginationInfoInURL(true)
     const [ pageIdx, setPageIdx ] = paginationInfoInURL ?
@@ -97,7 +99,7 @@ export function S3Tree({ bucket = '' }: { bucket: string, }) {
             if (e.key == 'u') {
                 if (keyPieces.length) {
                     const newKey = keyPieces.slice(0, keyPieces.length - 1).join('/')
-                    const url = `/${bucket}/${newKey}`
+                    const url = bucketUrlRoot ? `/${bucket}/${newKey}` : (prefix ? `/${stripPrefix(prefix.split('/'), newKey)}` :`/${newKey}`)
                     console.log(`Navigating to ${url}`)
                     navigate(url)
                 }
@@ -170,8 +172,6 @@ export function S3Tree({ bucket = '' }: { bucket: string, }) {
         return <div>Fetching {bucket}, page {pageIdx}…</div>
     }
 
-    console.log("Rows:", rows)
-
     const ancestors =
         ([] as string[])
             .concat(keyPieces)
@@ -182,6 +182,8 @@ export function S3Tree({ bucket = '' }: { bucket: string, }) {
                 },
                 [ { key: '', name: bucket }, ],
             )
+
+    console.log("Rows:", rows, `keyPieces:`, keyPieces, 'ancestors:', ancestors)
 
     const cache = fetcher.cache
     const numChildren = cache?.end
@@ -194,7 +196,7 @@ export function S3Tree({ bucket = '' }: { bucket: string, }) {
                     {
                         ancestors.map(({ key, name }) => {
                             const path = `${bucket}/${key}`
-                            const url = bucketUrlRoot ? `/${bucket}/${key}` : `/${key}`
+                            const url = bucketUrlRoot ? `/${bucket}/${key}` : (prefix ? `/${stripPrefix(prefix.split('/'), key)}` :`/${key}`)
                             return <li key={path}>
                                 <Link to={url}>{name}</Link>
                             </li>
@@ -219,7 +221,7 @@ export function S3Tree({ bucket = '' }: { bucket: string, }) {
                     </thead>
                     <tbody>{
                         rows.map(row =>
-                            TableRow(row, { bucket, prefix: keyPieces, bucketUrlRoot, })
+                            TableRow(row, { bucket, prefix: keyPieces, bucketUrlRoot, urlPrefix: prefix, })
                         )
                     }
                     </tbody>

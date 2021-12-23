@@ -41,6 +41,7 @@
   },
   "scripts": {
     "build": "node_modules/.bin/webpack",
+    "deploy": "./deploy.sh",
     "dev": "node_modules/.bin/webpack --mode=development -w",
     "permalink": "node permalink.js",
     "sync": "python sync.py",

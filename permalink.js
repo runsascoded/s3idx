@@ -15,7 +15,7 @@ const outPath = rest.length ? rest[0] : null
 const tag = opts.tag
 console.log(`Tag ${tag}, args ${args}`)
 
-const url = `https://github.com/runsascoded/s3idx/releases/download/${tag}`
+const url = `https://s3idx.s3.amazonaws.com/${tag}`
 
 const links = [
     { tag: 'script', attr:  'src', value: "./dist/bundle.js", },
