@@ -4,7 +4,7 @@ S3 bucket browsing via single `index.html` file
 ## Usage
 Copy `s3://s3idx/index.html` to any public S3 bucket:
 ```bash
-aws s3 cp s3://s3idx/index.html s3://$bucket/
+aws s3 cp s3://s3idx/index.html s3://$bucket/ --content-type="text/html; charset=utf-8" --acl public-read
 ```
 
 Browse `$bucket` interactively:
