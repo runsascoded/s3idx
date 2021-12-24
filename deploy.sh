@@ -40,6 +40,8 @@ done
 
 set -- "${ARGS[@]}"
 
+args=(--content-type="text/html; charset=utf-8" --acl public-read)
+
 if [ -n "$cache" ]; then
   cache_args=()
 else
@@ -56,5 +58,6 @@ run() {
 }
 
 # Always disable caching on the top-level index.html
-run aws s3 cp dist/index.html s3://$bucket/index.html --acl public-read --cache-control max-age=0,public
-run aws s3 cp dist/index.html s3://$bucket/$tag/index.html --acl public-read "${cache_args[@]}"
+run aws s3 cp dist/index.html s3://$bucket/index.html "${args[@]}" --cache-control max-age=0,public
+# Enable caching on specific release tags (unless -C|--no-cache was passed explicitly)
+run aws s3 cp dist/index.html s3://$bucket/$tag/index.html "${args[@]}" "${cache_args[@]}"

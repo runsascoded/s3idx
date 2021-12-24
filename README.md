@@ -20,7 +20,6 @@ https://ctbk.s3.amazonaws.com/index.html:
 - requests to S3 (`ListObjectsV2`) are cached for 24hrs
 - "Recurse" checkbox (default unchecked, persisted in `localStorage`) toggles fetching bucket/directory contents recursively
 
-  
 ## Roadmap / Feature wishlist
 TODO: make these GitHub issues
 
