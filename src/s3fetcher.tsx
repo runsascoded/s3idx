@@ -1,4 +1,12 @@
-import {CommonPrefix, LastModified, ListObjectsV2Output, ListObjectsV2Request, Object, ObjectKey, Size, } from "aws-sdk/clients/s3";
+import {
+    CommonPrefix,
+    LastModified,
+    ListObjectsV2Output,
+    ListObjectsV2Request,
+    Object,
+    ObjectKey,
+    Size,
+} from "aws-sdk/clients/s3";
 import moment, {Duration, DurationInputArg2, Moment} from "moment";
 import AWS from "aws-sdk";
 
@@ -31,7 +39,7 @@ export type Row = File | Dir
 export type Cache = {
     pages: ListObjectsV2Output[]
     timestamp: Moment
-    end?: number
+    numChildren?: number
     totalSize?: number
     LastModified?: LastModified
 }
@@ -51,8 +59,27 @@ export function Dir({ Prefix }: CommonPrefix): Dir {
 }
 
 type Metadata = {
-    totalSize: number,
-    LastModified?: LastModified,
+    numChildren: number
+    totalSize: number
+    LastModified?: LastModified
+}
+
+const combineMetadata = (
+    {
+        numChildren: lc,
+        totalSize: ls,
+        LastModified: lm,
+    }: Metadata, {
+        numChildren: rc,
+        totalSize: rs,
+        LastModified: rm,
+    }: Metadata
+) => {
+    return {
+        numChildren: lc + rc,
+        totalSize: ls + rs,
+        LastModified: lm === undefined ? rm : rm === undefined ? lm : lm > rm ? lm : rm,
+    }
 }
 
 export class S3Fetcher {
@@ -60,7 +87,7 @@ export class S3Fetcher {
     key?: string
     pageSize: number
     pagePromises: Promise<ListObjectsV2Output>[] = []
-    endCb?: (end: number) => void
+    cacheCb?: (cache: Cache) => void
     s3?: AWS.S3
     IdentityPoolId?: string
     cache?: Cache
@@ -75,7 +102,7 @@ export class S3Fetcher {
             IdentityPoolId,
             ttl,
             pageSize,
-            endCb,
+            cacheCb,
         }: {
             bucket: string,
             region?: string,
@@ -83,7 +110,7 @@ export class S3Fetcher {
             IdentityPoolId?: string,
             ttl?: string,
             pageSize?: number,
-            endCb?: (end: number) => void,
+            cacheCb?: (cache: Cache) => void,
         }
     ) {
         this.bucket = bucket
@@ -91,7 +118,7 @@ export class S3Fetcher {
         this.key = key
         this.pageSize = pageSize || 1000
         this.IdentityPoolId = IdentityPoolId
-        this.endCb = endCb
+        this.cacheCb = cacheCb
 
         if (region) {
             AWS.config.region = region;
@@ -103,10 +130,10 @@ export class S3Fetcher {
         const cacheKeyObj = key ? { bucket, key } : { bucket }
         this.cacheKey = JSON.stringify(cacheKeyObj)
         const cacheStr = localStorage.getItem(this.cacheKey)
-        console.log(`Cache:`, cacheKeyObj, `${this.cacheKey} (key: ${key})`)
+        // console.log(`Cache:`, cacheKeyObj, `${this.cacheKey} (key: ${key})`)
         if (cacheStr) {
-            const { pages, timestamp, end, totalSize, LastModified, } = JSON.parse(cacheStr)
-            this.cache = { pages, timestamp: moment(timestamp), end, totalSize, LastModified, }
+            const { pages, timestamp, numChildren, totalSize, LastModified, } = JSON.parse(cacheStr)
+            this.cache = { pages, timestamp: moment(timestamp), numChildren, totalSize, LastModified, }
         }
         if (ttl) {
             const groups = ttl.match(/(?<n>\d+)(?<unit>.*)/)?.groups
@@ -119,6 +146,7 @@ export class S3Fetcher {
         } else {
             this.ttl = moment.duration(1, 'd')
         }
+        this.checkCacheTtl()
     }
 
     get(start: number, end: number): Promise<Row[]> {
@@ -150,33 +178,96 @@ export class S3Fetcher {
         } else {
             localStorage.setItem(this.cacheKey, JSON.stringify(this.cache))
         }
+        if (this.cacheCb && this.cache)
+            this.cacheCb(this.cache)
+    }
+
+    dirs(): S3Fetcher[] | undefined {
+        const { bucket, cache } = this
+        if (cache) {
+            const {pages, numChildren} = cache
+            if (numChildren !== undefined) {
+                // console.log(`Cache: purging pages under ${bucket}/${key}`)
+                return ([] as S3Fetcher[]).concat(
+                    ...pages.map(Page).map(page =>
+                        page.dirs.map(dir =>
+                            new S3Fetcher({bucket, key: dir.Prefix,})
+                        )
+                    )
+                )
+            }
+        }
+    }
+
+    checkMetadata(): Metadata | undefined {
+        const { bucket, cache } = this
+        if (cache) {
+            const { numChildren, totalSize, LastModified, } = cache
+            if (numChildren !== undefined && totalSize !== undefined && LastModified !== undefined) {
+                return { numChildren, totalSize, LastModified, }
+            }
+        }
+        const result = this.reduceSync<Metadata>(
+            dir => {
+                const metadata =
+                    new S3Fetcher({ bucket, key: dir.Prefix, })
+                        .checkMetadata()
+                if (!metadata) return
+                const { totalSize, LastModified } = metadata
+                return { numChildren: 1, totalSize, LastModified }
+            },
+            ({ Size, LastModified, }) => {
+                return { numChildren: 1, totalSize: Size, LastModified, }
+            },
+            combineMetadata,
+            { totalSize: 0, numChildren: 0 }
+        )
+        if (result) {
+            const { numChildren, totalSize, LastModified } = result
+            if (this.cache) {
+                this.cache.numChildren = numChildren
+                this.cache.totalSize = totalSize
+                this.cache.LastModified = LastModified
+                this.saveCache()
+            } else {
+                throw Error(`Got checkMetadata result without cache present`)
+            }
+        }
+        return result
     }
 
     clearCache() {
         if (this.cache) {
+            this.dirs()?.forEach(dir => dir.clearCache())
             this.cache = undefined
             this.saveCache()
         }
     }
 
-    getPage(pageIdx: number): Promise<ListObjectsV2Output> {
-        const { pagePromises, cache, bucket, key, } = this
-        console.log(`Fetcher ${bucket} (${key}):`, cache)
+    checkCacheTtl(): Cache | undefined {
+        const { cache, ttl } = this
         if (cache) {
-            const { pages, timestamp } = cache
-            const { ttl } = this
+            const { timestamp, } = cache
             const now = moment()
             if (timestamp.add(ttl) < now) {
-                console.log(`Cache purge (${timestamp} + ${ttl} < ${now}):`, this.cache)
                 this.cache = undefined
                 this.saveCache()
-            } else {
-                if (pageIdx in pages) {
-                    console.log(`Cache hit: ${pageIdx} (timestamp ${this.cache?.timestamp})`)
-                    return Promise.resolve(pages[pageIdx])
-                }
-                console.log(`Cache miss: ${pageIdx} (timestamp ${this.cache?.timestamp})`)
             }
+        }
+        return this.cache
+    }
+
+    getPage(pageIdx: number): Promise<ListObjectsV2Output> {
+        const { pagePromises, bucket, key, } = this
+        // console.log(`Fetcher ${bucket} (${key}):`, cache)
+        const cache = this.checkCacheTtl()
+        if (cache) {
+            const { pages } = cache
+            if (pageIdx in pages) {
+                // console.log(`Cache hit: ${pageIdx} (timestamp ${this.cache?.timestamp})`)
+                return Promise.resolve(pages[pageIdx])
+            }
+            // console.log(`Cache miss: ${pageIdx} (timestamp ${this.cache?.timestamp})`)
         }
         if (pageIdx < pagePromises.length) {
             return pagePromises[pageIdx]
@@ -218,36 +309,57 @@ export class S3Fetcher {
         })
     }
 
+    reduceSync<T>(
+        dirFn: (dir: Dir) => T | undefined,
+        fileFn: (file: File) => T,
+        fn: (cur: T, nxt: T) => T,
+        init: T,
+    ): T | undefined {
+        const { cache } = this
+        if (!cache) return
+        if (cache.numChildren === undefined) return
+        let pagesResult: T | undefined = init
+        for (const page of cache.pages) {
+            const { files, dirs } = Page(page)
+            let dirsResult: T | undefined = init
+            for (const dir of dirs) {
+                const value = dirFn(dir)
+                if (value === undefined) {
+                    return undefined
+                }
+                dirsResult = fn(dirsResult, value)
+            }
+            // const dirResults = dirs.map(dirFn).reduce(fn, init)
+            const filesResult = files.map(fileFn).reduce(fn, init)
+            const result = fn(dirsResult, filesResult)
+            pagesResult = fn(pagesResult, result)
+        }
+        return pagesResult
+    }
+
     computeMetadata(): Promise<Metadata> {
         const { bucket, key } = this
         const cached = { totalSize: this.cache?.totalSize, LastModified: this.cache?.LastModified }
         if (cached.totalSize !== undefined && cached.LastModified !== undefined) {
-            console.log(`computeMetadata: ${bucket}/${key} cache hit`)
+            // console.log(`computeMetadata: ${bucket}/${key} cache hit`)
             return Promise.resolve(cached as Metadata)
         }
-        console.log(`computeMetadata: ${bucket}/${key}; computing`)
+        // console.log(`computeMetadata: ${bucket}/${key}; computing`)
         return (
             this.reduce<Metadata>(
-                dir => new S3Fetcher({ bucket, key: dir.Prefix }).computeMetadata(),
-                ({Size, LastModified,}) => Promise.resolve({ totalSize: Size, LastModified }),
-                (
-                    {
-                        totalSize: ls,
-                        LastModified: lm,
-                    }, {
-                        totalSize: rs,
-                        LastModified: rm,
-                    }
-                ) => {
-                    return {
-                        totalSize: ls + rs,
-                        LastModified: lm === undefined ? rm : rm === undefined ? lm : lm > rm ? lm : rm,
-                    }
-                },
-                { totalSize: 0, },
-                ({ totalSize, LastModified, }) => {
+                dir =>
+                    new S3Fetcher({ bucket, key: dir.Prefix }).computeMetadata().then(
+                        ({ totalSize, LastModified }) => {
+                            return { numChildren: 1, totalSize, LastModified }
+                        }
+                    ),
+                ({Size, LastModified,}) => Promise.resolve({ totalSize: Size, LastModified, numChildren: 1 }),
+                combineMetadata,
+                { totalSize: 0, numChildren: 0, },
+                ({ numChildren, totalSize, LastModified, }) => {
                     if (this.cache) {
-                        console.log(`Setting metadata for ${bucket}/${key}: totalSize ${totalSize}, mtime ${LastModified}`)
+                        // console.log(`Setting metadata for ${bucket}/${key}: totalSize ${totalSize}, mtime ${LastModified}`)
+                        this.cache.numChildren = numChildren
                         this.cache.totalSize = totalSize
                         this.cache.LastModified = LastModified
                         this.saveCache()
@@ -256,6 +368,17 @@ export class S3Fetcher {
                     }
                 }
             )
+        )
+    }
+
+    fileMetadata(): Metadata | undefined {
+        const pages = this.cache?.pages
+        if (!pages) return
+        const files = ([] as File[]).concat(...pages.map(page => Page(page).files))
+        return (
+            files
+                .map(({ Size, LastModified, }) => { return { numChildren: 1, totalSize: Size, LastModified, }})
+                .reduce<Metadata>(combineMetadata, { totalSize: 0, numChildren: 0, })
         )
     }
 
@@ -292,7 +415,7 @@ export class S3Fetcher {
                 Delimiter: '/',
                 ContinuationToken,
             };
-            console.log(`Fetching page idx ${numPages}`)
+            // console.log(`Fetching page idx ${numPages}`)
             const timestamp = moment()
             const pagePromise: Promise<ListObjectsV2Output> =
                 IdentityPoolId ?
@@ -300,30 +423,52 @@ export class S3Fetcher {
                     s3.makeUnauthenticatedRequest('listObjectsV2', params).promise()
             return pagePromise.then(page => {
                 const truncated = page.IsTruncated
-                const numItems = page.Contents?.length
-                console.log(
-                    `Got page idx ${numPages} (${numItems} items, truncated ${truncated}, continuation ${page.NextContinuationToken})`
-                )
+                const numFiles = page.Contents?.length || 0
+                const numDirs = page.CommonPrefixes?.length || 0
+                const numChildren = numFiles + numDirs
+                // console.log(
+                //     `Got page idx ${numPages} (${numItems} items, truncated ${truncated}, continuation ${page.NextContinuationToken})`
+                // )
+                let saveCache
+                let cache: Cache
                 if (!this.cache) {
                     let pages = []
                     pages[pageIdx] = page
                     this.cache = { pages, timestamp, }
-                    console.log("Fresh cache:", this.cache)
-                    this.saveCache()
+                    // console.log("Fresh cache:", this.cache)
+                    saveCache = true
+                    cache = this.cache
                 } else {
                     this.cache.pages[pageIdx] = page
-                    console.log(`Cache page idx ${pageIdx}:`, page)
+                    // console.log(`Cache page idx ${pageIdx}:`, page)
                     if (timestamp < this.cache.timestamp) {
-                        console.log(`Cache page idx ${pageIdx}: timestamp ${this.cache.timestamp} → ${timestamp}`)
+                        // console.log(`Cache page idx ${pageIdx}: timestamp ${this.cache.timestamp} → ${timestamp}`)
                         this.cache.timestamp = timestamp
                     }
-                    this.saveCache()
+                    saveCache = true
+                    cache = this.cache
                 }
                 if (!truncated) {
-                    this.cache.end = numPages * pageSize + (numItems || 0)
-                    if (this.endCb) {
-                        this.endCb(this.cache.end)
-                    }
+                    this.cache.numChildren = numPages * pageSize + numChildren
+                    // const pages = cache.pages
+                    // const allDirs = ([] as Dir[]).concat(...pages.map(page => Page(page).dirs))
+
+                    //const allDirsComputed = allDirs.reduce((allsoFar, dir) => allSoFar && dir.cach)
+                    // if (!numDirs) {
+                    //     const files = ([] as File[]).concat(...pages.map(page => Page(page).files))
+                    //     const { totalSize, LastModified } = (
+                    //         files
+                    //             .map(({ Size, LastModified, }) => { return { totalSize: Size, LastModified, }})
+                    //             .reduce<Metadata>(combineMetadata, { totalSize: 0, numChildren: 0 })
+                    //     )
+                    //     console.assert(this.cache)
+                    //     this.cache.totalSize = totalSize
+                    //     this.cache.LastModified = LastModified
+                    // }
+                    saveCache = true
+                }
+                if (saveCache) {
+                    this.saveCache()
                 }
                 return page
             })

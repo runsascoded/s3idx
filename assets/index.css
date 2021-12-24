@@ -113,8 +113,12 @@ ul.breadcrumb li+li:before {
     content: "/";
 }
 
-.goto-page {
+.goto-page-label {
     margin-right: 0.5rem;
+}
+.goto-page {
+    width: 3rem;
+    text-align: right;
 }
 .page-number {
     margin-left: 0.5rem;
@@ -123,16 +127,23 @@ ul.breadcrumb li+li:before {
 
 .pagination {
     margin-top: 1rem;
+    line-height: 1.2rem;
 }
 .pagination button {
     margin-left: 0rem;
     margin-right: 0.5rem;
 }
 
-.hotkeys {
-    margin-top: 1rem;
-}
 .hotkeys .key {
     font-size: 1rem;
     margin: 0 0.3rem;
+}
+
+.recurse-control {
+    margin-left: 0.5rem;
+    /*margin-bottom: 0.5rem*/
+}
+.recurse {
+    margin-left: 0.3rem;
+    vertical-align: middle;
 }

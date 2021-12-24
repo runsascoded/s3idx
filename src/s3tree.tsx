@@ -62,6 +62,7 @@ function TableRow(row: Row, extra: { bucket: string, bucketUrlRoot: boolean, pre
 const usePageIdx = createPersistedState('pageIdx')
 const usePageSize = createPersistedState('pageSize')
 const usePaginationInfoInURL = createPersistedState('paginationInfoInURL')
+const useEagerMetadata = createPersistedState('eagerMetadata')
 
 export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: string }) {
     const params = useParams()
@@ -88,11 +89,48 @@ export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: strin
 
     const [ rows, setRows ] = useState<Row[] | null>(null)
     const [ s3PageSize, setS3PageSize ] = useState(1000)
-    const [ total, setTotal ] = useState<number | null>(null)
-    const numPages = total === null ? null : ceil(total / pageSize)
+
+    console.log(`** Initializing, bucket ${bucket} key ${key}, page idx ${pageIdx} size ${pageSize}`)
+    const [region, setRegion] = useState('us-east-1')  // TODO
+
+    // Setting a new Nonce object is used to trigger `fetcher` to re-initialize itself from scratch after a
+    // user-initiated cache purge
+    const [ fetcherNonce, setFetcherNonce ] = useState({})
+    const fetcher = useMemo(() => {
+        console.log(`Memo: fetcher; bucket ${bucket} (key ${key}), current rows:`, rows)
+        return new S3Fetcher({
+            bucket,
+            region,
+            key,
+            pageSize: s3PageSize,
+            cacheCb: cache => {
+                console.log("CacheCb!", cache)
+                setMetadataNonce({})
+            }
+        })
+    }, [ bucket, region, key, fetcherNonce, ])
+
+    const [ metadataNonce, setMetadataNonce ] = useState({})
+    const cache = useMemo(
+        () => {
+          return fetcher.cache
+        },
+        [ fetcher, rows, metadataNonce, ],
+    )
+    const metadata = fetcher.checkMetadata()
+    let { numChildren: numChildren, totalSize, LastModified } =
+        metadata
+            ? metadata
+            : { numChildren: undefined, totalSize: undefined, LastModified: undefined }
+    // `numChildren` is sometimes known even if the others aren't (it only requires paging to the end of the bucket,
+    // not computing child directories' sizes recursively)
+    numChildren = numChildren === undefined ? fetcher?.cache?.numChildren : numChildren
+    console.log("Metadata:", metadata, "cache:", fetcher.cache)
+
+    const numPages = numChildren === undefined ? undefined : ceil(numChildren / pageSize)
 
     const cantPrv = pageIdx == 0
-    const cantNxt = numPages === null || pageIdx + 1 == numPages
+    const cantNxt = numPages === undefined || pageIdx + 1 == numPages
 
     const handler = useCallback(
         (e) => {
@@ -117,56 +155,42 @@ export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: strin
     );
     useEventListener("keypress", handler);
 
-    console.log(`** Initializing, bucket ${bucket} key ${key}, page idx ${pageIdx} size ${pageSize} num ${numPages} total ${total}`)
-    const [region, setRegion] = useState('us-east-1')
-    const fetcher = useMemo(() => {
-        console.log(`new fetcher for bucket ${bucket} (key ${key}), current rows:`, rows)
-        return new S3Fetcher({ bucket, region, key, pageSize: s3PageSize, /*endCb: setTotal*/ })
-    }, [ bucket, region, key, ])
-
     const start = pageSize * pageIdx
     const end = start + pageSize
 
-    const [ totalSize, setTotalSize ] = useState<number | null>(null)
-    const [ lastModified, setLastModified ] = useState<Moment | null>(null)
-
     useEffect(
         () => {
+            console.log("Effect: rows")
             fetcher.get(start, end).then(setRows)
         },
         [ fetcher, pageIdx, pageSize, bucket, key, ]
     )
 
+    const [ eagerMetadata, setEagerMetadata ] = useEagerMetadata(false)
+
     useEffect(
         () => {
-            fetcher
-                .computeMetadata()
-                .then(( { totalSize, LastModified, }) => {
-                    const total = fetcher.cache?.end
-                    console.log(`Setting fetcher metadata: ${total} items, size ${totalSize}, mtime ${LastModified}`)
-                    if (total !== undefined) {
-                        setTotal(total)
-                    }
-                    setTotalSize(totalSize)
-                    if (LastModified) {
-                        setLastModified(moment(LastModified))
-                    }
-                })
+            console.log(`Effect: compute metadata? (${eagerMetadata})`)
+            if (eagerMetadata) {
+                fetcher
+                    .computeMetadata()
+                    .then(() => setMetadataNonce({}))
+            }
         },
-        [ fetcher, bucket, key, ]
+        [ fetcher, bucket, key, eagerMetadata, ]
     )
 
-    const mismatchedRows = (rows || []).filter(
-        row => {
-            const Prefix = (row as Dir).Prefix
-            const Key = Prefix ? Prefix : (row as File).Key
-            return Key.substring(0, key.length) != key
-        }
-    )
-    if (mismatchedRows.length) {
-        const mismatchedKeys = mismatchedRows.map(r => (r as File).Key || (r as Dir).Prefix)
-        console.warn(`Mismatched keys:`, mismatchedKeys.slice(0, 10))
-    }
+    // const mismatchedRows = (rows || []).filter(
+    //     row => {
+    //         const Prefix = (row as Dir).Prefix
+    //         const Key = Prefix ? Prefix : (row as File).Key
+    //         return Key.substring(0, key.length) != key
+    //     }
+    // )
+    // if (mismatchedRows.length) {
+    //     const mismatchedKeys = mismatchedRows.map(r => (r as File).Key || (r as Dir).Prefix)
+    //     console.warn(`Mismatched keys:`, mismatchedKeys.slice(0, 10))
+    // }
 
     if (!rows) {
         return <div>Fetching {bucket}, page {pageIdx}…</div>
@@ -185,9 +209,10 @@ export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: strin
 
     console.log("Rows:", rows, `keyPieces:`, keyPieces, 'ancestors:', ancestors)
 
-    const cache = fetcher.cache
-    const numChildren = cache?.end
-    const mtime = cache?.LastModified
+    function clearCache() {
+        fetcher.clearCache()
+        setFetcherNonce({})
+    }
 
     return (
         <div className="container">
@@ -204,11 +229,10 @@ export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: strin
                     }
                 </ul>
                 <span className="metadata">
-                    <span className="metadatum">{numChildren} children,&nbsp;</span>
-                    <span className="metadatum">total size {totalSize ? renderSize(totalSize, 'iec') : ''} ({totalSize}),&nbsp;</span>
-                    <span className="metadatum">last modified {moment(mtime).format('YYYY-MM-DD')}</span>
+                    <span className="metadatum">{numChildren === undefined ? '?' : numChildren} children,&nbsp;</span>
+                    <span className="metadatum">total size {totalSize !== undefined ? renderSize(totalSize, 'iec') : '?'}{totalSize ? ` (${totalSize})` : ''},&nbsp;</span>
+                    <span className="metadatum">last modified {LastModified ? moment(LastModified).format('YYYY-MM-DD') : '?'}</span>
                 </span>
-                <button className="clear-cache" onClick={() => fetcher.clearCache()}>Clear cache</button>
             </div>
             <div className="row">
                 <table className="files-list">
@@ -236,12 +260,12 @@ export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: strin
                     Page{' '}
                     <span>{pageIdx + 1} of {numPages === null ? '?' : numPages}</span>{' '}
                 </span>
-                <span className="goto-page">| Go to page:{' '}</span>
+                <span className="goto-page-label">| Go to page:{' '}</span>
                 <input
+                    className="goto-page"
                     type="number"
                     defaultValue={pageIdx + 1}
                     onChange={e => setPageIdx(e.target.value ? Number(e.target.value) - 1 : 0)}
-                    style={{ width: '100px' }}
                 />
                 {' '}
                 <select
@@ -255,8 +279,25 @@ export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: strin
                     ))}
                 </select>
             </div>
-            <div className="row hotkeys">
-                Hotkeys: <code className="key">u</code> (up), <code className="key">&lt;</code> (previous page), <code className="key">&gt;</code> (next page)
+            <div className="row footer">
+                <span className="hotkeys">
+                    Hotkeys:
+                    <code className="key">u</code> (up),
+                    <code className="key">&lt;</code> (previous page),
+                    <code className="key">&gt;</code> (next page)
+                </span>
+                <button className="clear-cache" onClick={() => clearCache()}>Clear cache</button>
+                <span className="recurse-control">
+                    <label>
+                        Recurse:
+                        <input
+                            className="recurse"
+                            type="checkbox"
+                            checked={eagerMetadata}
+                            onChange={(e) => setEagerMetadata(e.target.checked)}
+                        />
+                    </label>
+                </span>
             </div>
         </div>
     )

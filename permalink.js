@@ -15,6 +15,16 @@ const outPath = rest.length ? rest[0] : null
 const tag = opts.tag
 console.log(`Tag ${tag}, args ${args}`)
 
+// TODO:
+// - ✅ recursive cache clear
+// - ✅ toggle auto recurse
+// - ✅ deploy to demo bucket
+// - recursive mode
+// - embed JS/CSS in index.html
+// - column formatters
+// - configs in index.html
+// - README
+// - allow toggling domain below
 const url = `https://s3idx.s3.amazonaws.com/${tag}`
 
 const links = [
