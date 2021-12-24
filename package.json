@@ -40,6 +40,7 @@
     "css-loader": "^6.5.1",
     "exports-loader": "^3.1.0",
     "html-webpack-plugin": "^5.5.0",
+    "html-webpack-tags-plugin": "^3.0.2",
     "http-server": "^0.12.3",
     "imports-loader": "^3.1.1",
     "inline-chunk-html-plugin": "^1.1.1",
