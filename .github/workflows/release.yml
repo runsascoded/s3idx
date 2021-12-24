@@ -17,9 +17,7 @@ jobs:
           npm install
       - name: Build
         run: npm run build
-      - name: Permalink
-        run: npm run permalink -- -t ${{github.ref_name}} index.html index-permalinked.html
-      - name: Sync
+      - name: Deploy
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_KEY }}

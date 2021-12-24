@@ -56,9 +56,5 @@ run() {
 }
 
 # Always disable caching on the top-level index.html
-run aws s3 cp index-permalinked.html s3://$bucket/index.html --acl public-read --cache-control max-age=0,public
-
-run aws s3 cp index-permalinked.html s3://$bucket/$tag/index.html --acl public-read "${cache_args[@]}"
-for f in assets/favicon.ico assets/index.css dist/bundle.js; do
-  run aws s3 cp "$f" s3://$bucket/$tag/ --acl public-read "${cache_args[@]}"
-done
+run aws s3 cp dist/index.html s3://$bucket/index.html --acl public-read --cache-control max-age=0,public
+run aws s3 cp dist/index.html s3://$bucket/$tag/index.html --acl public-read "${cache_args[@]}"

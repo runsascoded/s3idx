@@ -64,7 +64,6 @@
     "build": "NODE_ENV=production node_modules/.bin/webpack",
     "deploy": "./deploy.sh",
     "dev": "NODE_ENV=development node_modules/.bin/webpack --mode=development -w",
-    "permalink": "node permalink.js",
     "sync": "python sync.py",
     "fix-mime-type": "./fix-mime-type.sh"
   }
