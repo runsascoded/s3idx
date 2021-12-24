@@ -19,7 +19,7 @@ console.log(`Tag ${tag}, args ${args}`)
 // - ✅ recursive cache clear
 // - ✅ toggle auto recurse
 // - ✅ deploy to demo bucket
-// - recursive mode
+// - recursive mode (use `Prefix`-less ListObjectsV2)
 // - embed JS/CSS in index.html
 // - column formatters
 // - configs in index.html

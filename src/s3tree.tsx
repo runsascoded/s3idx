@@ -8,6 +8,85 @@ import {renderSize} from "./size";
 import {useQueryParam} from "use-query-params";
 import {intParam} from "./search-params"
 import createPersistedState from "use-persisted-state";
+import styled, {css} from "styled-components"
+import * as rb from "react-bootstrap"
+
+const Container = styled(rb.Container)`
+    margin-bottom: 2rem;
+`
+const RowStyle = css`
+    padding 0 2rem;
+`
+const DivRow = styled(rb.Row)`
+    ${RowStyle}
+`
+const HeaderRow = styled(DivRow)`
+    /* margin-bottom: 1rem; */
+`
+const Breadcrumb = styled(rb.Breadcrumb)`
+li+li:before {
+    padding: 0.2em;
+    color: black;
+    content: "/";
+}
+`
+const PaginationRow = styled(DivRow)`
+    margin-top: 1rem;
+    line-height: 1.2rem;
+`
+const Button = styled.button`
+    font-size: 1em;
+    margin-left: 1em;
+    padding: 0 0.5em;
+    border: 1px solid #bbb;
+    cursor: pointer;
+    box-sizing: border-box;
+`
+const PaginationButton = styled(Button)`
+    margin-left: 0rem;
+    margin-right: 0.5rem;
+`
+const FooterRow = styled(DivRow)`
+    margin-top: 1rem;
+`
+const MetadataEl = styled.span`
+    margin-top: .75rem;
+    margin-left: 1rem;
+`
+
+const FilesList = styled.table`
+td,th {
+    text-align: right;
+    padding-right: 1rem;
+}
+td {
+    font-family: monospace;
+}
+`
+
+const GotoPageLabel = styled.span`
+margin-right: 0.5rem;
+`
+
+const GotoPage = styled.input`
+width: 3rem;
+text-align: right;
+`
+const PageNumber = styled.span`
+margin-left: 0.5rem;
+margin-right: 0.5rem;
+`
+const HotKey = styled.code`
+font-size: 1rem;
+margin: 0 0.3rem;
+`
+const RecurseControl = styled.span`
+margin-left: 0.5rem;
+`
+const Recurse = styled.input`
+margin-left: 0.3rem;
+vertical-align: middle;
+`
 
 const { ceil, floor, max, min } = Math
 
@@ -215,9 +294,9 @@ export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: strin
     }
 
     return (
-        <div className="container">
-            <div className="header row">
-                <ul className="breadcrumb">
+        <Container>
+            <HeaderRow>
+                <Breadcrumb>
                     {
                         ancestors.map(({ key, name }) => {
                             const path = `${bucket}/${key}`
@@ -227,15 +306,15 @@ export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: strin
                             </li>
                         })
                     }
-                </ul>
-                <span className="metadata">
+                </Breadcrumb>
+                <MetadataEl>
                     <span className="metadatum">{numChildren === undefined ? '?' : numChildren} children,&nbsp;</span>
                     <span className="metadatum">total size {totalSize !== undefined ? renderSize(totalSize, 'iec') : '?'}{totalSize ? ` (${totalSize})` : ''},&nbsp;</span>
                     <span className="metadatum">last modified {LastModified ? moment(LastModified).format('YYYY-MM-DD') : '?'}</span>
-                </span>
-            </div>
-            <div className="row">
-                <table className="files-list">
+                </MetadataEl>
+            </HeaderRow>
+            <DivRow>
+                <FilesList>
                     <thead>
                     <tr>
                         <th key="name">Name</th>
@@ -249,20 +328,19 @@ export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: strin
                         )
                     }
                     </tbody>
-                </table>
-            </div>
-            <div className="row pagination">
-                <button onClick={() => setPageIdx(0)} disabled={cantPrv}>{'<<'}</button>{' '}
-                <button onClick={() => setPageIdx(pageIdx - 1)} disabled={cantPrv}>{'<'}</button>{' '}
-                <button onClick={() => setPageIdx(pageIdx + 1)} disabled={cantNxt}>{'>'}</button>{' '}
-                <button onClick={() => setPageIdx((numPages || 0) - 1)} disabled={cantNxt}>{'>>'}</button>{' '}
-                <span className="page-number">
+                </FilesList>
+            </DivRow>
+            <PaginationRow>
+                <PaginationButton onClick={() => setPageIdx(0)} disabled={cantPrv}>{'<<'}</PaginationButton>{' '}
+                <PaginationButton onClick={() => setPageIdx(pageIdx - 1)} disabled={cantPrv}>{'<'}</PaginationButton>{' '}
+                <PaginationButton onClick={() => setPageIdx(pageIdx + 1)} disabled={cantNxt}>{'>'}</PaginationButton>{' '}
+                <PaginationButton onClick={() => setPageIdx((numPages || 0) - 1)} disabled={cantNxt}>{'>>'}</PaginationButton>{' '}
+                <PageNumber>
                     Page{' '}
                     <span>{pageIdx + 1} of {numPages === null ? '?' : numPages}</span>{' '}
-                </span>
-                <span className="goto-page-label">| Go to page:{' '}</span>
-                <input
-                    className="goto-page"
+                </PageNumber>
+                <GotoPageLabel>| Go to page:{' '}</GotoPageLabel>
+                <GotoPage
                     type="number"
                     defaultValue={pageIdx + 1}
                     onChange={e => setPageIdx(e.target.value ? Number(e.target.value) - 1 : 0)}
@@ -278,27 +356,26 @@ export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: strin
                         </option>
                     ))}
                 </select>
-            </div>
-            <div className="row footer">
+            </PaginationRow>
+            <FooterRow>
                 <span className="hotkeys">
                     Hotkeys:
-                    <code className="key">u</code> (up),
-                    <code className="key">&lt;</code> (previous page),
-                    <code className="key">&gt;</code> (next page)
+                    <HotKey>u</HotKey> (up),
+                    <HotKey>&lt;</HotKey> (previous page),
+                    <HotKey>&gt;</HotKey> (next page)
                 </span>
-                <button className="clear-cache" onClick={() => clearCache()}>Clear cache</button>
-                <span className="recurse-control">
+                <Button onClick={() => clearCache()}>Clear cache</Button>
+                <RecurseControl>
                     <label>
                         Recurse:
-                        <input
-                            className="recurse"
+                        <Recurse
                             type="checkbox"
                             checked={eagerMetadata}
                             onChange={(e) => setEagerMetadata(e.target.checked)}
                         />
                     </label>
-                </span>
-            </div>
-        </div>
+                </RecurseControl>
+            </FooterRow>
+        </Container>
     )
 }

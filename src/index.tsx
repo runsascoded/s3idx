@@ -2,6 +2,7 @@ import {HashRouter, Route, Routes} from "react-router-dom";
 import React from 'react';
 import ReactDOM from 'react-dom'
 
+import './bootstrap.min.css';
 import $ from 'jquery';
 import {S3Tree} from "./s3tree";
 import {QueryParamProvider} from "use-query-params";
