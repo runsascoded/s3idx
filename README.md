@@ -24,16 +24,19 @@ https://ctbk.s3.amazonaws.com/index.html:
 TODO: make these GitHub issues
 
 ### Caching
-- [ ] implement recursive fetch mode (using `Prefix`-less ListObjectsV2)
-- [ ] configure TTL interactively
 - [ ] display TTL / "fetched at" info
+- [ ] implement recursive fetch mode (using `Prefix`-less ListObjectsV2)
 - [ ] Implement cache in `sql.js`
 
 ### Table listing
-- [ ] column formatters (size, times)
+- [ ] column formatters:
+  - [ ] size: IEC, ISO, bytes
+  - [ ] time: relative, YYYY-MM-DD, YYYY-MM-DDTHH:MM:SS
 - [ ] toggle showing/hiding columns
 - [ ] sortable columns
 - [ ] searchable columns
+- [ ] hide pagination controls when < 1 page
+- [ ] uncomputed values rendered as links that trigger computation
 
 ### Global Configs
 - [ ] initial global configs in `index.html`
@@ -46,6 +49,5 @@ TODO: make these GitHub issues
 
 ### Misc
 - [ ] check both `<bucket>.s3.amazonaws.com/…` and `s3.amazonaws.com/<bucket>/…` URL forms
-- [ ] add attribution / GitHub link
 - [ ] audit/reduce bundle size
 - [ ] treemap view

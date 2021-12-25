@@ -160,15 +160,19 @@ export function useEnumMultiParam<T extends string>(
 
 export const defaultReplaceChars = { '%2F': '/', '%21': '!', }
 
-export const stringParam: QueryParamConfig<string> = {
-    encode: (value: string) => value,
-    decode: (value: string | (string | null)[] | null | undefined) => {
-        if (typeof value === 'string') {
-            return value
+export function stringParam(defaultValue: string = ''): QueryParamConfig<string> {
+    return {
+        encode: (value: string) => value == defaultValue ? undefined : value.toString(),
+        decode: (value: string | (string | null)[] | null | undefined): string => {
+            if (typeof value === 'string') {
+                return value
+            }
+            if (!value) return defaultValue
+            const n = value.length
+            if (!n) return defaultValue
+            const last = value[n - 1]
+            return last === null ? defaultValue : last
         }
-        if (!value) return ''
-        if (!value.length) return ''
-        return value[value.length - 1] || ''
     }
 }
 

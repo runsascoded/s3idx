@@ -1,64 +1,17 @@
 import React, {useCallback, useEffect, useMemo, useState,} from "react";
-import moment, {Moment} from 'moment'
+import moment, {Duration} from 'moment'
 import {Link, useNavigate, useParams} from "react-router-dom";
 import _ from "lodash";
 import useEventListener from "@use-it/event-listener";
-import {Dir, File, Row, S3Fetcher} from "./s3fetcher";
+import {Dir, File, parseDuration, Row, S3Fetcher} from "./s3fetcher";
 import {renderSize} from "./size";
 import {useQueryParam} from "use-query-params";
-import {intParam} from "./search-params"
+import {intParam, stringParam} from "./search-params"
 import createPersistedState from "use-persisted-state";
 import styled, {css} from "styled-components"
 import * as rb from "react-bootstrap"
 
 const githubLogo = "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAyRpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADw/eHBhY2tldCBiZWdpbj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+IDx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3JlIDUuMy1jMDExIDY2LjE0NTY2MSwgMjAxMi8wMi8wNi0xNDo1NjoyNyAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvIiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL21tLyIgeG1sbnM6c3RSZWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZVJlZiMiIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIENTNiAoTWFjaW50b3NoKSIgeG1wTU06SW5zdGFuY2VJRD0ieG1wLmlpZDpFNTE3OEEyQTk5QTAxMUUyOUExNUJDMTA0NkE4OTA0RCIgeG1wTU06RG9jdW1lbnRJRD0ieG1wLmRpZDpFNTE3OEEyQjk5QTAxMUUyOUExNUJDMTA0NkE4OTA0RCI+IDx4bXBNTTpEZXJpdmVkRnJvbSBzdFJlZjppbnN0YW5jZUlEPSJ4bXAuaWlkOkU1MTc4QTI4OTlBMDExRTI5QTE1QkMxMDQ2QTg5MDREIiBzdFJlZjpkb2N1bWVudElEPSJ4bXAuZGlkOkU1MTc4QTI5OTlBMDExRTI5QTE1QkMxMDQ2QTg5MDREIi8+IDwvcmRmOkRlc2NyaXB0aW9uPiA8L3JkZjpSREY+IDwveDp4bXBtZXRhPiA8P3hwYWNrZXQgZW5kPSJyIj8+m4QGuQAAAyRJREFUeNrEl21ojWEYx895TDPbMNlBK46IUiNmPvHBSUjaqc0H8pF5+aDUKPEBqU2NhRQpX5Rv5jWlDIWlMCv7MMSWsWwmb3tpXub4XXWdPHvc9/Gc41nu+nedc7/8r/99PffLdYdDPsvkwsgkTBwsA/PADJCnzX2gHTwBt8Hl7p537/3whn04XoDZDcpBlk+9P8AFcAghzRkJwPF4zGGw0Y9QS0mAM2AnQj77FqCzrtcwB1Hk81SYojHK4DyGuQ6mhIIrBWB9Xm7ug/6B/nZrBHBegrkFxoVGpnwBMSLR9EcEcC4qb8pP14BWcBcUgewMnF3T34VqhWMFkThLJAalwnENOAKiHpJq1FZgI2AT6HZtuxZwR9GidSHtI30jOrbawxlVX78/AbNfhHlomEUJJI89O2MqeE79T8/nk8nMBm/dK576hZgmA3cp/R4l9/UeSxiHLVIlNm4nFfT0bxyuIj7LHRTKai+zdJobwMKzcZSJb0ePV5PKN+BqAAKE47UlMnERELMM3EdYP/yrd+XYb2mOiYBiQ8OQnoRBlXrl9JZix7D1pHTazu4MoyBcnYamqAjIMTR8G4FT8LuhLsexXYYjICBiqhQBvYb6fLZIJCjPypVvaOoVAW2WcasCnL2Nq82xHJNSqlCeFcDshaPK0twkAhosjZL31QYw+1rlMpWGMArl23SBsZZO58F2tlJXmjOXS+s4WGvpMiBJT/I2PInZ6lIs9/hBsNS1hS6BG0DSqmYEDRlCXQrmy50P1oDRKTSegmNbUsA0zDMwRhPJXeCE3vWLPQMvan6X8AgIa1vcR4AkGZkDR4ejJ1UHpsaVI0g2LInpOsNFUud1rhxSV+fzC9Woz2EZkWQuja7/B+jUrgtIMpy9YCW4n4K41YfzRneW5E1KJTe4B2Zq1Q5EHEtj4U3AfEzR5SVY4l7QYQPJdN2as7RKBF0BPZqqH4VgMAMBL8Byxr7y8zCZiDlnOcEKIPmUpgB5Z2ww5RdOiiRiNajUmWda5IG6WbhsyY2fx6m8gLcoJDJFkH219M3We1+cnda93pfycZpIJEL/s/wSYADmOAwAQgdpBAAAAABJRU5ErkJggg=="
-// const githubLogo = "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJ\n" +
-//     "bWFnZVJlYWR5ccllPAAAAyRpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADw/eHBhY2tldCBiZWdp\n" +
-//     "bj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+IDx4OnhtcG1ldGEgeG1sbnM6\n" +
-//     "eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3JlIDUuMy1jMDExIDY2LjE0\n" +
-//     "NTY2MSwgMjAxMi8wMi8wNi0xNDo1NjoyNyAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJo\n" +
-//     "dHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlw\n" +
-//     "dGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAv\n" +
-//     "IiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL21tLyIgeG1sbnM6c3RS\n" +
-//     "ZWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZVJlZiMiIHhtcDpD\n" +
-//     "cmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIENTNiAoTWFjaW50b3NoKSIgeG1wTU06SW5zdGFu\n" +
-//     "Y2VJRD0ieG1wLmlpZDpFNTE3OEEyRTk5QTAxMUUyOUExNUJDMTA0NkE4OTA0RCIgeG1wTU06RG9j\n" +
-//     "dW1lbnRJRD0ieG1wLmRpZDpFNTE3OEEyRjk5QTAxMUUyOUExNUJDMTA0NkE4OTA0RCI+IDx4bXBN\n" +
-//     "TTpEZXJpdmVkRnJvbSBzdFJlZjppbnN0YW5jZUlEPSJ4bXAuaWlkOkU1MTc4QTJDOTlBMDExRTI5\n" +
-//     "QTE1QkMxMDQ2QTg5MDREIiBzdFJlZjpkb2N1bWVudElEPSJ4bXAuZGlkOkU1MTc4QTJEOTlBMDEx\n" +
-//     "RTI5QTE1QkMxMDQ2QTg5MDREIi8+IDwvcmRmOkRlc2NyaXB0aW9uPiA8L3JkZjpSREY+IDwveDp4\n" +
-//     "bXBtZXRhPiA8P3hwYWNrZXQgZW5kPSJyIj8+FYrpWAAABrNJREFUeNrkW2lsVFUUvjMWirYUkS5B\n" +
-//     "XApUa2vd6gL+wAWjoP5RiW2EUBajAiqSuPADQ0w1UUQTrcFAUUSJEKriEuMWFKuJIElFSS24YNpQ\n" +
-//     "K6WoBbuAktbva880M8O8vnfevJm+CSf5cme599xzvnfffffce17AJFjycnLzUVwDXAgUAucBY4BM\n" +
-//     "IEOqdQIdwJ/Az4J64OvWtoONibQvkACHgyiuBe4CbgLOjVNlE/AZsAmoBSE9viQAjueieBCYC5yV\n" +
-//     "oAvWDKwHqkBEmy8IgON09lHgXmCESY4cBaqBlSCieUgIgOPDUCwBngBOM0MjXdL/CyDiv6QRAOcv\n" +
-//     "R7EBKDL+kD3AbJBQl1AC4DjrLwaeBYYbf8m/ciu+BCJ6PScAzp+K4nXgTuNveQuYAxK6PSMAzo9C\n" +
-//     "8TFwtUkN2Q7cDBIOx02AOP8FUGpSSzgf3GBHQsDGec7unwOTTWrKDiGhS02ATHjvALeb1JZ3gRlW\n" +
-//     "E+MpVq0yMzIekRk/1YWP6o7Ors5vHI8AXH1Odl8BaTbKrwd4j10MTAduS8JqkKvA94BPgN0A56ht\n" +
-//     "Nm2OMyDDKNhuSwCcT5dIrMBG6S4oLI1qezqKBcBjwGiPHW8HVgCr0W97VL/fobjMpv2vQAnaHgv/\n" +
-//     "MdYVXurAeSNPhggRw56BQatRVgL3A0H5+xDwI8Dw9g/5Hlq+clmdDYwF8iV0zpb/GP2tApZHOx4m\n" +
-//     "2xwQUCC+VVqOABg+AUUDkO6AgHkwaL2DJXORxPVNylUnw+gpXObaLXFRlxHoaw7U8uoXQ99vViNg\n" +
-//     "qUPnKQfsKojhdW7GuxDW5JUtIuni432hH4JhLJ7Dq6qwcZiPZnpNXDJPfI0kQEJbjVM5PiIgW3nh\n" +
-//     "lkQQILH9LGWnV/iIAK0ts8TngREwDchVKrnKRwRobckVnwcIKFcq4ONrkY8IWBT2SHUq5eEE3Khs\n" +
-//     "/CRm6Z1+8V5sqVQ26/M5gHuhSJ79TqUFmIhOj/ppwQ8/Rshqb5yiWXFQFhsaWeU352UU0KaXlc2m\n" +
-//     "BI1+Y3OzjyO/Gm2kSAIKFQ2awfQ+v3oP23gL/K5oUhh0GPiEZG8KxP97FHULgsqwtTUFCDioqHsG\n" +
-//     "CRipaHA8BQjQrAcyg4roj5KVAgSMUtRNDyqVj0wBAlQ2koBuRf3xKUBAvqJuN1eCrYpAiHNAltNj\n" +
-//     "pyFYDfL47oix38wdmDA5AvYr+kjzWRgcLVcqnKfsJwGNyk5u9TEBtyjrNwaVgRClTPKA/Db8aVOZ\n" +
-//     "slkDG2nD2vEuOkqGlLmYpHcGJLlJu8LjtvJFgx06Jvnq8xC33gUBeUE4waWjduua5wdVPrr6VS6c\n" +
-//     "r6PvoXv5Ixed3g3mH/fB1V9OW1w07fM5IEouUEZR4bIWWJzsTRJ55r8I3ONSRRFs3hsIU8hkgkku\n" +
-//     "lf0CPAx8qElQcuk4beYp9Epgoks138LOvqSPgfyAzIwMZlnFSobgIegc4H3gH6AkxmKDub9Mjb0D\n" +
-//     "eoYDrZ1dne0eO14AvfPx8RXgAYaycahbBvt+GLgFpIM0md3PjqrMTMxpYKxB6p1v+s/n7bbSuMCq\n" +
-//     "ldmZyc+fRh9ND+IsAxrmG3C3qtj0J1uP84hLrnwnwJbjEQRIxzw0XB2jER93C9Bog9TjsRgzLpzu\n" +
-//     "Jr0BzHV6e8gwf9XoziqdCv1YE/oSTQBHwfem/3w+5syPxuukLtfdO0zk+WIs+YuPKLQ7ohzyWTIi\n" +
-//     "x3joPPMTLg1d/Yg5gIL7ogf32U/4WGGhYDr+34J6bUALPpPA62w6XYMOP9BaCv3HoD/PeJubODN6\n" +
-//     "U/eEq4cKTIurttpBAZ4L+87TmKdtOt0ah8FbPXS+WnyLEKskqUy5FaweM5dA2e6w+pNkZuajhfMD\n" +
-//     "3/zYBfDKb3Y6+cWwgytOL7bh98nQ73BEgHReIvd4Roy/a6Cs3CRYJOnq7zjV8HWcybC33mpLLKZI\n" +
-//     "A84FPRYhcSokUNL2Civnjd0MjoZbUCy0+PtNkDDD5wQsFB8sxWm2+GJZd8eSt4HnZXnZ66Nb4CHY\n" +
-//     "Yxuxat4XmI1inbHeczskq77DMrK4z8AgK3+Q/L5EEMBn/PzQos0zAsQgvg5XY3TpNKOTSAD3NsrQ\n" +
-//     "X63TBqq9PVHM9NgvfXi/06ZSjfNqAoQEHj9Pled+pw8cpw2co6aKbSoJxDlJnYniKdP/sqSVrrEw\n" +
-//     "7IBL/TnG+rSXEy7fYVoG/S1uffDkzVEYypB1qewJRCdb5rp9yxN6mQDZFmOS2wisCIXo8Yin7w7L\n" +
-//     "iKiQEcFYfhOMnBmnzo1CLIO09Qyt47niJxDQ29trTmY56Qn4X4ABAFR7IoDmVT5NAAAAAElFTkSu\n" +
-//     "QmCC"
 
 const Container = styled(rb.Container)`
     margin-bottom: 2rem;
@@ -104,37 +57,38 @@ const MetadataEl = styled.span`
 `
 
 const FilesList = styled.table`
-td,th {
+    td,th {
+        text-align: right;
+        padding-right: 1rem;
+    }
+    td {
+        font-family: monospace;
+    }
+`
+const textInputStyle = css`
+    width: 2.6rem;
     text-align: right;
-    padding-right: 1rem;
-}
-td {
-    font-family: monospace;
-}
+`
+const GotoPage = styled.input`${textInputStyle}`
+const Ttl = styled.input`${textInputStyle}`
+const TtlControl = styled.span`
+    margin-left: 0.5rem;
 `
 
-const GotoPageLabel = styled.span`
-margin-right: 0.5rem;
-`
-
-const GotoPage = styled.input`
-width: 3rem;
-text-align: right;
-`
 const PageNumber = styled.span`
-margin-left: 0.5rem;
-margin-right: 0.5rem;
+    margin-left: 0.5rem;
+    margin-right: 0.5rem;
 `
 const HotKey = styled.code`
-font-size: 1rem;
-margin: 0 0.3rem;
+    font-size: 1rem;
+    margin: 0 0.3rem;
 `
 const RecurseControl = styled.span`
-margin-left: 0.5rem;
+    margin-left: 0.5rem;
 `
 const Recurse = styled.input`
-margin-left: 0.3rem;
-vertical-align: middle;
+    margin-left: 0.3rem;
+    vertical-align: middle;
 `
 
 const { ceil, floor, max, min } = Math
@@ -150,15 +104,16 @@ function stripPrefix(prefix: string[], k: string) {
 
 function DirRow(
     { Prefix: key }: Dir,
-    { bucket, bucketUrlRoot, urlPrefix }: {
+    { bucket, bucketUrlRoot, urlPrefix, duration }: {
         bucket: string,
         bucketUrlRoot: boolean,
+        duration: Duration,
         urlPrefix?: string,
     },
 ) {
     const pieces = key.split('/')
     const name = pieces[pieces.length - 1]
-    const fetcher = new S3Fetcher({bucket, key})
+    const fetcher = new S3Fetcher({ bucket, key, ttl: duration, })
     const totalSize = fetcher.cache?.totalSize
     const mtime = fetcher.cache?.LastModified
     const url = bucketUrlRoot ? `/${bucket}/${key}` : (urlPrefix ? `/${stripPrefix(urlPrefix.split('/'), key)}` :`/${key}`)
@@ -179,7 +134,7 @@ function FileRow({ Key, LastModified, Size, }: File, { prefix }: { prefix: strin
     </tr>
 }
 
-function TableRow(row: Row, extra: { bucket: string, bucketUrlRoot: boolean, prefix: string[], urlPrefix?: string, }) {
+function TableRow(row: Row, extra: { bucket: string, bucketUrlRoot: boolean, duration: Duration, prefix: string[], urlPrefix?: string, }) {
     return (
         (row as Dir).Prefix !== undefined
             ? DirRow(row as Dir, extra)
@@ -190,7 +145,14 @@ function TableRow(row: Row, extra: { bucket: string, bucketUrlRoot: boolean, pre
 const usePageIdx = createPersistedState('pageIdx')
 const usePageSize = createPersistedState('pageSize')
 const usePaginationInfoInURL = createPersistedState('paginationInfoInURL')
+const useTtl = createPersistedState('ttl')
 const useEagerMetadata = createPersistedState('eagerMetadata')
+
+const d1 = moment.duration(1, 'd')
+
+function toPageIdxStr(idx: number) {
+    return (idx >= 0 ? (idx + 1) : idx).toString()
+}
 
 export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: string }) {
     const params = useParams()
@@ -207,19 +169,12 @@ export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: strin
     const key = keyPieces.join('/')
     console.log(`Render ${bucket}/${key}: params`, params, ` (prefix ${prefix})`)
 
-    const [ paginationInfoInURL, setPaginationInfoInURL ] = usePaginationInfoInURL(true)
-    const [ pageIdx, setPageIdx ] = paginationInfoInURL ?
-        useQueryParam('p', intParam(0)) :
-        usePageIdx(0)
-    const [ pageSize, setPageSize ] = paginationInfoInURL ?
-        useQueryParam('s', intParam(20)) :
-        usePageSize<number>(20)
-
     const [ rows, setRows ] = useState<Row[] | null>(null)
     const [ s3PageSize, setS3PageSize ] = useState(1000)
 
-    console.log(`** Initializing, bucket ${bucket} key ${key}, page idx ${pageIdx} size ${pageSize}`)
     const [region, setRegion] = useState('us-east-1')  // TODO
+    const [ ttl, setTtl ] = useTtl<string>('1d')
+    const duration = parseDuration(ttl) || d1
 
     // Setting a new Nonce object is used to trigger `fetcher` to re-initialize itself from scratch after a
     // user-initiated cache purge
@@ -231,6 +186,7 @@ export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: strin
             region,
             key,
             pageSize: s3PageSize,
+            ttl: duration,
             cacheCb: cache => {
                 console.log("CacheCb!", cache)
                 setMetadataNonce({})
@@ -238,13 +194,9 @@ export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: strin
         })
     }, [ bucket, region, key, fetcherNonce, ])
 
+    // Current-directory metadata
+
     const [ metadataNonce, setMetadataNonce ] = useState({})
-    const cache = useMemo(
-        () => {
-          return fetcher.cache
-        },
-        [ fetcher, rows, metadataNonce, ],
-    )
     const metadata = fetcher.checkMetadata()
     let { numChildren: numChildren, totalSize, LastModified } =
         metadata
@@ -255,10 +207,54 @@ export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: strin
     numChildren = numChildren === undefined ? fetcher?.cache?.numChildren : numChildren
     console.log("Metadata:", metadata, "cache:", fetcher.cache)
 
+    const [ paginationInfoInURL, setPaginationInfoInURL ] = usePaginationInfoInURL(true)
+    const [ pageSize, setPageSize ] = paginationInfoInURL ?
+        useQueryParam('s', intParam(20)) :
+        usePageSize<number>(20)
     const numPages = numChildren === undefined ? undefined : ceil(numChildren / pageSize)
+
+    const [ pageIdxStr, setPageIdxStr ] = paginationInfoInURL ?
+        useQueryParam('p', stringParam('1')) :
+        usePageIdx('1')
+    let pageIdx = parseInt(pageIdxStr)
+    if (pageIdx > 0) pageIdx -= 1
+    let callSetPageIdx: number | undefined
+    if (isNaN(pageIdx)) {
+        pageIdx = 0
+    }
+    if (pageIdx < 0) {
+        if (numPages === undefined) {
+            console.log(`Negative page index ${pageIdx}, but don't know numPages yet`)
+            pageIdx = 0
+        } else {
+            if (pageIdx < -numPages) {
+                pageIdx = 0
+                callSetPageIdx = pageIdx
+            } else {
+                pageIdx = numPages + pageIdx
+            }
+            console.log(`Mapped negative page index ${pageIdxStr} to ${pageIdx}`)
+        }
+    }
+    if (numPages !== undefined && pageIdx >= numPages) {
+        pageIdx = numPages - 1
+        callSetPageIdx = pageIdx
+    }
+
+    useEffect(
+        () => {
+            if (callSetPageIdx !== undefined) {
+                setPageIdxStr(toPageIdxStr(callSetPageIdx))
+            }
+        },
+        [ callSetPageIdx, ]
+    )
+    console.log(`** Initializing, bucket ${bucket} key ${key}, page ${pageIdx}/${numPages} ⨉ ${pageSize}`)
 
     const cantPrv = pageIdx == 0
     const cantNxt = numPages === undefined || pageIdx + 1 == numPages
+
+    // Key events
 
     const handler = useCallback(
         (e) => {
@@ -271,11 +267,11 @@ export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: strin
                 }
             } else if (e.key == '<') {
                 if (!cantPrv) {
-                    setPageIdx(pageIdx - 1)
+                    setPageIdxStr(toPageIdxStr(pageIdx - 1))
                 }
             } else if (e.key == '>') {
                 if (!cantNxt) {
-                    setPageIdx(pageIdx + 1)
+                    setPageIdxStr(toPageIdxStr(pageIdx + 1))
                 }
             }
         },
@@ -373,38 +369,49 @@ export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: strin
                     </thead>
                     <tbody>{
                         rows.map(row =>
-                            TableRow(row, { bucket, prefix: keyPieces, bucketUrlRoot, urlPrefix: prefix, })
+                            TableRow(row, { bucket, prefix: keyPieces, bucketUrlRoot, urlPrefix: prefix, duration, })
                         )
                     }
                     </tbody>
                 </FilesList>
             </DivRow>
             <PaginationRow>
-                <PaginationButton onClick={() => setPageIdx(0)} disabled={cantPrv}>{'<<'}</PaginationButton>{' '}
-                <PaginationButton onClick={() => setPageIdx(pageIdx - 1)} disabled={cantPrv}>{'<'}</PaginationButton>{' '}
-                <PaginationButton onClick={() => setPageIdx(pageIdx + 1)} disabled={cantNxt}>{'>'}</PaginationButton>{' '}
-                <PaginationButton onClick={() => setPageIdx((numPages || 0) - 1)} disabled={cantNxt}>{'>>'}</PaginationButton>{' '}
+                <PaginationButton onClick={() => setPageIdxStr(toPageIdxStr(0))} disabled={cantPrv}>{'<<'}</PaginationButton>{' '}
+                <PaginationButton onClick={() => setPageIdxStr(toPageIdxStr(pageIdx - 1))} disabled={cantPrv}>{'<'}</PaginationButton>{' '}
+                <PaginationButton onClick={() => setPageIdxStr(toPageIdxStr(pageIdx + 1))} disabled={cantNxt}>{'>'}</PaginationButton>{' '}
+                <PaginationButton onClick={() => setPageIdxStr(toPageIdxStr((numPages || 0) - 1))} disabled={cantNxt}>{'>>'}</PaginationButton>{' '}
                 <PageNumber>
                     Page{' '}
-                    <span>{pageIdx + 1} of {numPages === null ? '?' : numPages}</span>{' '}
+                    <GotoPage
+                        type="number"
+                        value={pageIdxStr}
+                        onChange={e => setPageIdxStr(e.target.value || '')}
+                    />{' '}
+                    <span>of {numPages === null ? '?' : numPages}</span>{' ⨉ '}
+                    <select
+                        value={pageSize}
+                        onChange={e => setPageSize(Number(e.target.value))}
+                    >
+                        {[10, 20, 50, 100].map(pageSize =>
+                            <option key={pageSize} value={pageSize}>{pageSize}</option>
+                        )}
+                    </select>
                 </PageNumber>
-                <GotoPageLabel>| Go to page:{' '}</GotoPageLabel>
-                <GotoPage
-                    type="number"
-                    defaultValue={pageIdx + 1}
-                    onChange={e => setPageIdx(e.target.value ? Number(e.target.value) - 1 : 0)}
-                />
                 {' '}
-                <select
-                    value={pageSize}
-                    onChange={e => setPageSize(Number(e.target.value))}
-                >
-                    {[10, 20, 50, 100].map(pageSize => (
-                        <option key={pageSize} value={pageSize}>
-                            Show {pageSize}
-                        </option>
-                    ))}
-                </select>
+                <TtlControl>
+                    TTL:{' '}
+                    <Ttl
+                        type="text"
+                        defaultValue={ttl}
+                        onChange={e => {
+                            const ttl = e.target.value
+                            const d = parseDuration(ttl)
+                            if (d) {
+                                setTtl(ttl)
+                            }
+                        }}
+                    />
+                </TtlControl>
             </PaginationRow>
             <FooterRow>
                 <span className="hotkeys">

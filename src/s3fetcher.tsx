@@ -82,6 +82,20 @@ const combineMetadata = (
     }
 }
 
+export function parseDuration(ttl: string): moment.Duration | undefined {
+    const groups = ttl.match(/(?<n>\d+)(?<unit>.*)/)?.groups
+    if (!groups) {
+        return
+    }
+    const n = parseInt(groups.n)
+    const unit: DurationInputArg2 = groups.unit as DurationInputArg2
+    const d = moment.duration(n, unit)
+    if (!d.asMilliseconds() && n > 0) {
+        return undefined
+    }
+    return d
+}
+
 export class S3Fetcher {
     bucket: string
     key?: string
@@ -108,7 +122,7 @@ export class S3Fetcher {
             region?: string,
             key?: string,
             IdentityPoolId?: string,
-            ttl?: string,
+            ttl?: Duration | string,
             pageSize?: number,
             cacheCb?: (cache: Cache) => void,
         }
@@ -136,13 +150,13 @@ export class S3Fetcher {
             this.cache = { pages, timestamp: moment(timestamp), numChildren, totalSize, LastModified, }
         }
         if (ttl) {
-            const groups = ttl.match(/(?<n>\d+)(?<unit>.*)/)?.groups
-            if (!groups) {
-                throw Error(`Unrecognized ttl: ${ttl}`)
+            if (typeof ttl === 'string') {
+                ttl = parseDuration(ttl)
+                if (!ttl) {
+                    throw Error(`Unrecognized TTL: ${ttl}`)
+                }
             }
-            const n = parseInt(groups.n)
-            const unit: DurationInputArg2 = groups.unit as DurationInputArg2
-            this.ttl = moment.duration(n, unit)
+            this.ttl = ttl
         } else {
             this.ttl = moment.duration(1, 'd')
         }
@@ -245,11 +259,12 @@ export class S3Fetcher {
     }
 
     checkCacheTtl(): Cache | undefined {
-        const { cache, ttl } = this
+        const { bucket, cache, key, ttl } = this
         if (cache) {
             const { timestamp, } = cache
             const now = moment()
-            if (timestamp.add(ttl) < now) {
+            if (timestamp.clone().add(ttl) < now) {
+                console.log(`Cache expired: ${bucket}/${key}, ${timestamp} + ${ttl} < ${now}`)
                 this.cache = undefined
                 this.saveCache()
             }
