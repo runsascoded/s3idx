@@ -363,6 +363,7 @@ export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: strin
     console.log("Rows:", rows, `keyPieces:`, keyPieces, 'ancestors:', ancestors)
 
     function clearCache() {
+        setEagerMetadata(false)
         fetcher.clearCache()
         setFetcherNonce({})
     }
