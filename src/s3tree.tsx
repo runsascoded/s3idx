@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useMemo, useState,} from "react";
-import moment, {Duration, Moment} from 'moment'
+import moment, {Duration} from 'moment'
 import {Link, useNavigate, useParams} from "react-router-dom";
 import _ from "lodash";
 import useEventListener from "@use-it/event-listener";
@@ -10,11 +10,12 @@ import {intParam, stringParam} from "./search-params"
 import createPersistedState from "use-persisted-state";
 import styled, {css} from "styled-components"
 import * as rb from "react-bootstrap"
-import ReactTooltip from "react-tooltip"
-import * as mui from "@mui/material"
-import {ThemeProvider, Tooltip, tooltipClasses, TooltipProps} from "@mui/material"
-import {Option, Radios} from "./radios";
+import {ThemeProvider} from "@mui/material"
+import {Option} from "./radios";
 import theme from "./theme";
+import {DatetimeFmt, renderDatetime} from "./datetime";
+import {ColumnHeader, HeaderSettings} from "./column-header";
+import {stripPrefix} from "./utils";
 
 const githubLogo = "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAyRpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADw/eHBhY2tldCBiZWdpbj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+IDx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3JlIDUuMy1jMDExIDY2LjE0NTY2MSwgMjAxMi8wMi8wNi0xNDo1NjoyNyAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvIiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL21tLyIgeG1sbnM6c3RSZWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZVJlZiMiIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIENTNiAoTWFjaW50b3NoKSIgeG1wTU06SW5zdGFuY2VJRD0ieG1wLmlpZDpFNTE3OEEyQTk5QTAxMUUyOUExNUJDMTA0NkE4OTA0RCIgeG1wTU06RG9jdW1lbnRJRD0ieG1wLmRpZDpFNTE3OEEyQjk5QTAxMUUyOUExNUJDMTA0NkE4OTA0RCI+IDx4bXBNTTpEZXJpdmVkRnJvbSBzdFJlZjppbnN0YW5jZUlEPSJ4bXAuaWlkOkU1MTc4QTI4OTlBMDExRTI5QTE1QkMxMDQ2QTg5MDREIiBzdFJlZjpkb2N1bWVudElEPSJ4bXAuZGlkOkU1MTc4QTI5OTlBMDExRTI5QTE1QkMxMDQ2QTg5MDREIi8+IDwvcmRmOkRlc2NyaXB0aW9uPiA8L3JkZjpSREY+IDwveDp4bXBtZXRhPiA8P3hwYWNrZXQgZW5kPSJyIj8+m4QGuQAAAyRJREFUeNrEl21ojWEYx895TDPbMNlBK46IUiNmPvHBSUjaqc0H8pF5+aDUKPEBqU2NhRQpX5Rv5jWlDIWlMCv7MMSWsWwmb3tpXub4XXWdPHvc9/Gc41nu+nedc7/8r/99PffLdYdDPsvkwsgkTBwsA/PADJCnzX2gHTwBt8Hl7p537/3whn04XoDZDcpBlk+9P8AFcAghzRkJwPF4zGGw0Y9QS0mAM2AnQj77FqCzrtcwB1Hk81SYojHK4DyGuQ6mhIIrBWB9Xm7ug/6B/nZrBHBegrkFxoVGpnwBMSLR9EcEcC4qb8pP14BWcBcUgewMnF3T34VqhWMFkThLJAalwnENOAKiHpJq1FZgI2AT6HZtuxZwR9GidSHtI30jOrbawxlVX78/AbNfhHlomEUJJI89O2MqeE79T8/nk8nMBm/dK576hZgmA3cp/R4l9/UeSxiHLVIlNm4nFfT0bxyuIj7LHRTKai+zdJobwMKzcZSJb0ePV5PKN+BqAAKE47UlMnERELMM3EdYP/yrd+XYb2mOiYBiQ8OQnoRBlXrl9JZix7D1pHTazu4MoyBcnYamqAjIMTR8G4FT8LuhLsexXYYjICBiqhQBvYb6fLZIJCjPypVvaOoVAW2WcasCnL2Nq82xHJNSqlCeFcDshaPK0twkAhosjZL31QYw+1rlMpWGMArl23SBsZZO58F2tlJXmjOXS+s4WGvpMiBJT/I2PInZ6lIs9/hBsNS1hS6BG0DSqmYEDRlCXQrmy50P1oDRKTSegmNbUsA0zDMwRhPJXeCE3vWLPQMvan6X8AgIa1vcR4AkGZkDR4ejJ1UHpsaVI0g2LInpOsNFUud1rhxSV+fzC9Woz2EZkWQuja7/B+jUrgtIMpy9YCW4n4K41YfzRneW5E1KJTe4B2Zq1Q5EHEtj4U3AfEzR5SVY4l7QYQPJdN2as7RKBF0BPZqqH4VgMAMBL8Byxr7y8zCZiDlnOcEKIPmUpgB5Z2ww5RdOiiRiNajUmWda5IG6WbhsyY2fx6m8gLcoJDJFkH219M3We1+cnda93pfycZpIJEL/s/wSYADmOAwAQgdpBAAAAABJRU5ErkJggg=="
 
@@ -77,30 +78,6 @@ const FilesList = styled.table`
         font-family: monospace;
     }
 `
-// const ColumnSettingsIcon = styled.span`
-//     padding: 0.2rem;
-//     cursor: pointer;
-// `
-// const HoverTooltip = styled(ReactTooltip)`
-//     pointer-events: auto !important;
-//     text-align: left;
-//     font-size: 1rem;
-//     font-weight: normal;
-//     &:hover {
-//         visibility: visible !important;
-//         opacity: 1 !important;
-//     }
-//     .control-header {
-//         margin-bottom: 0.1rem;
-//         font-weight: bold;
-//         font-size: 1rem;
-//     }
-//     .sub-control > label {
-//         display: block;
-//         margin-bottom: 0rem;
-//         font-size: 1rem;
-//     }
-// `
 const TotalRow = styled.tr`
     /*border-top: 1px solid grey;*/
     /*border-bottom: 1px solid grey;*/
@@ -145,103 +122,8 @@ const Recurse = styled.input`
     margin-left: 0.3rem;
     vertical-align: middle;
 `
-const SettingsIcon = styled.span`
-    margin-right: 0.3rem;
-`
 
 const { ceil, floor, max, min } = Math
-
-function stripPrefix(prefix: string[], k: string) {
-    const pcs = k.split('/')
-    if (!_.isEqual(prefix, pcs.slice(0, prefix.length))) {
-        return k
-        // throw new Error(`Key ${k} doesn't start with prefix ${prefix.join("/")}`)
-    }
-    return pcs.slice(prefix.length).join('/')
-}
-
-export type Setter<T> = React.Dispatch<React.SetStateAction<T>>
-export const stopPropagation = (e: React.MouseEvent<HTMLInputElement>) => e.stopPropagation()
-
-type HeaderSettings<T extends string> = {
-    options: (Option<T> | T)[]
-    choice: T
-    cb: (choice: T) => void
-}
-
-function ColumnHeader<T extends string>(
-    label: string,
-    headerSettings?: HeaderSettings<T>,
-) {
-    const body: JSX.Element =
-        headerSettings ?
-            <Radios label={label} {...headerSettings} /> :
-            <div>no choices available</div>
-
-    return (
-        <ColumnHeaderTooltip disableFocusListener arrow placement="bottom-start" title={
-            <div className="settings-tooltip" onClick={stopPropagation}>
-                {body}
-            </div>
-        }>
-            <span className="header-span">
-                <SettingsIcon>⚙️</SettingsIcon>
-                {label}
-            </span>
-        </ColumnHeaderTooltip>
-    )
-}
-
-const ColumnHeaderTooltip = mui.styled(
-    ({ className, ...props }: TooltipProps) => <Tooltip {...props} classes={{ popper: className }} />
-)(({ theme }) => ({
-    [`& .${tooltipClasses.tooltip}`]: {
-        backgroundColor: theme.palette.common.black,
-        color: theme.palette.common.white,
-        fontSize: '1rem',
-        marginBottom: '0.2rem',
-    },
-    '.settings-tooltip': {
-        margin: '0.3rem 0',
-    },
-    '.control-header': {
-        fontWeight: 'bold',
-        marginBottom: '0.4rem',
-    },
-    '.sub-control > label': {
-        display: 'block',
-        marginBottom: 0,
-    }
-}));
-
-moment.locale('en', {
-    relativeTime: {
-        future: 'in %s',
-        past: '%s ago',
-        s:  'seconds',
-        ss: '%ss',
-        m:  'a minute',
-        mm: '%dm',
-        h:  'an hour',
-        hh: '%dh',
-        d:  'a day',
-        dd: '%dd',
-        M:  'a month',
-        MM: '%dM',
-        y:  'a year',
-        yy: '%dY'
-    }
-});
-
-function renderDatetime(m: Moment, fmt: DatetimeFmt): string {
-    if (fmt == 'relative') {
-        return m.fromNow(true)
-    } else {
-        return m.format(fmt)
-    }
-}
-
-type DatetimeFmt = 'YYYY-MM-DD' | 'YYYY-MM-DD HH:mm:ss' | 'relative'
 
 function DirRow(
     { Prefix: key }: Dir,
@@ -306,7 +188,7 @@ const useEagerMetadata = createPersistedState('eagerMetadata')
 const useDatetimeFmt = createPersistedState('datetimeFmt')
 const useSizeFmt = createPersistedState('sizeFmt')
 
-const d1 = moment.duration(1, 'd')
+const h10 = moment.duration(10, 'h')
 
 function toPageIdxStr(idx: number) {
     return (idx >= 0 ? (idx + 1) : idx).toString()
@@ -335,7 +217,7 @@ export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: strin
 
     const [region, setRegion] = useState('us-east-1')  // TODO
     const [ ttl, setTtl ] = useTtl<string>('10h')
-    const duration = parseDuration(ttl) || d1
+    const duration = parseDuration(ttl) || h10
 
     // Setting a new Nonce object is used to trigger `fetcher` to re-initialize itself from scratch after a
     // user-initiated cache purge
@@ -466,18 +348,6 @@ export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: strin
         [ fetcher, bucket, key, eagerMetadata, ]
     )
 
-    // const mismatchedRows = (rows || []).filter(
-    //     row => {
-    //         const Prefix = (row as Dir).Prefix
-    //         const Key = Prefix ? Prefix : (row as File).Key
-    //         return Key.substring(0, key.length) != key
-    //     }
-    // )
-    // if (mismatchedRows.length) {
-    //     const mismatchedKeys = mismatchedRows.map(r => (r as File).Key || (r as Dir).Prefix)
-    //     console.warn(`Mismatched keys:`, mismatchedKeys.slice(0, 10))
-    // }
-
     if (!rows) {
         return <div>Fetching {bucket}, page {pageIdx}…</div>
     }
@@ -551,38 +421,9 @@ export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: strin
                         <th key="name">Name</th>
                         <th key="size">
                             {ColumnHeader('Size', sizeHeaderSettings)}
-                            {/*<ColumnHeader<SizeFmt> label="Size" headerSettings={sizeHeaderSettings} />*/}
-                            {/*<ColumnSettingsIcon>*/}
-                            {/*    <a data-tip data-for="size-settings">⚙</a>*/}
-                            {/*    <HoverTooltip id="size-settings" effect="solid" delayHide={1000}>*/}
-                            {/*        size!*/}
-                            {/*    </HoverTooltip>*/}
-                            {/*️</ColumnSettingsIcon>*/}
-                            {/*{' '}Size*/}
                         </th>
                         <th key="mtime">
                             {ColumnHeader('Modified', datetimeHeaderSettings)}
-                           {/* <ColumnSettingsIcon>*/}
-                           {/*     <a data-tip*/}
-                           {/*        data-for="mtime-settings"*/}
-                           {/*        // data-event="click"*/}
-                           {/*     >⚙</a>*/}
-                           {/*     <HoverTooltip*/}
-                           {/*         id="mtime-settings"*/}
-                           {/*         effect="solid"*/}
-                           {/*         delayHide={1000}*/}
-                           {/*         place="bottom"*/}
-                           {/*         clickable={true}*/}
-                           {/*     >*/}
-                           {/*         <Radios*/}
-                           {/*             label="Format"*/}
-                           {/*             options={datetimeOptions}*/}
-                           {/*             choice={datetimeFmt}*/}
-                           {/*             cb={setDatetimeFmt}*/}
-                           {/*         />*/}
-                           {/*     </HoverTooltip>*/}
-                           {/*️</ColumnSettingsIcon>*/}
-                           {/* {' '}Modified*/}
                         </th>
                     </tr>
                     </thead>

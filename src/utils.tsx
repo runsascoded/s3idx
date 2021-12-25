@@ -1,10 +1,20 @@
 import React from "react"
+import _ from "lodash";
 
 export type Setter<T> = React.Dispatch<React.SetStateAction<T>>
 
 export const basename = function(path: string): string {
     const idx = path.lastIndexOf('/')
     return idx == -1 ? path : path.substring(idx + 1)
+}
+
+export function stripPrefix(prefix: string[], k: string) {
+    const pcs = k.split('/')
+    if (!_.isEqual(prefix, pcs.slice(0, prefix.length))) {
+        return k
+        // throw new Error(`Key ${k} doesn't start with prefix ${prefix.join("/")}`)
+    }
+    return pcs.slice(prefix.length).join('/')
 }
 
 // export const encode = function(str: string): string {
