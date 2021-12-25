@@ -199,7 +199,7 @@ export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: strin
     const navigate = useNavigate()
 
     const [ datetimeFmt, setDatetimeFmt ] = useDatetimeFmt<DatetimeFmt>('YYYY-MM-DD HH:mm:ss')
-    const [ sizeFmt, setSizeFmt ] = useSizeFmt<SizeFmt>('iec')
+    const [ sizeFmt, setSizeFmt ] = useSizeFmt<SizeFmt>('iso')
 
     const path = (params['*'] || '').replace(/\/$/, '').replace(/^\//, '')
     const pathPieces = (prefix ? prefix.split('/') : []).concat(path ? path.split('/') : [])
