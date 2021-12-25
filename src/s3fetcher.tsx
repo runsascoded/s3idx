@@ -9,6 +9,7 @@ import {
 } from "aws-sdk/clients/s3";
 import moment, {Duration, DurationInputArg2, Moment} from "moment";
 import AWS from "aws-sdk";
+import {CredentialsOptions} from "aws-sdk/lib/credentials";
 
 const { ceil, floor, max, min } = Math
 
@@ -20,7 +21,7 @@ export type File = {
 
 export type Dir = {
     Prefix: string
-    LastModified?: LastModified
+    LastModified?: LastModified | null
     Size?: Size
 }
 
@@ -41,7 +42,7 @@ export type Cache = {
     timestamp: Moment
     numChildren?: number
     totalSize?: number
-    LastModified?: LastModified
+    LastModified?: LastModified | null
 }
 
 export function File({ Key, LastModified, Size, }: Object): File {
@@ -61,7 +62,7 @@ export function Dir({ Prefix }: CommonPrefix): Dir {
 type Metadata = {
     numChildren: number
     totalSize: number
-    LastModified?: LastModified
+    LastModified?: LastModified | null
 }
 
 const combineMetadata = (
@@ -78,7 +79,16 @@ const combineMetadata = (
     return {
         numChildren: lc + rc,
         totalSize: ls + rs,
-        LastModified: lm === undefined ? rm : (rm === undefined ? lm : (lm > rm ? lm : rm)),
+        LastModified:
+            (!lm && !rm)
+                ? ((lm === null || rm === null) ? null : undefined)
+                : (
+                    !lm ? rm : (
+                        !rm ? lm : (
+                            lm > rm ? lm : rm
+                        )
+                    )
+                ),
     }
 }
 
@@ -103,7 +113,7 @@ export class S3Fetcher {
     pagePromises: Promise<ListObjectsV2Output>[] = []
     cacheCb?: (cache: Cache) => void
     s3?: AWS.S3
-    IdentityPoolId?: string
+    authenticated: boolean
     cache?: Cache
     cacheKey: string
     ttl?: Duration
@@ -114,6 +124,7 @@ export class S3Fetcher {
             region,
             key,
             IdentityPoolId,
+            credentials,
             ttl,
             pageSize,
             cacheCb,
@@ -122,6 +133,7 @@ export class S3Fetcher {
             region?: string,
             key?: string,
             IdentityPoolId?: string,
+            credentials?: CredentialsOptions
             ttl?: Duration | string,
             pageSize?: number,
             cacheCb?: (cache: Cache) => void,
@@ -131,14 +143,19 @@ export class S3Fetcher {
         key =  key?.replace(/\/$/, '')
         this.key = key
         this.pageSize = pageSize || 1000
-        this.IdentityPoolId = IdentityPoolId
+        this.authenticated = !!IdentityPoolId || !!credentials
         this.cacheCb = cacheCb
 
         if (region) {
             AWS.config.region = region;
         }
         if (IdentityPoolId) {
-            AWS.config.credentials = new AWS.CognitoIdentityCredentials({ IdentityPoolId, });
+            if (credentials) {
+                throw Error("Provide `IdentityPoolId` xor `credentials`")
+            }
+            AWS.config.credentials = new AWS.CognitoIdentityCredentials({ IdentityPoolId, })
+        } else if (credentials) {
+            AWS.config.credentials = credentials
         }
         this.s3 = new AWS.S3({});
         const cacheKeyObj = key ? { bucket, key } : { bucket }
@@ -213,6 +230,22 @@ export class S3Fetcher {
         }
     }
 
+    maybeSaveMetadata({ numChildren, totalSize, LastModified }: Metadata) {
+        let save = false
+        if (this.cache) {
+            if (this.cache.numChildren !== numChildren) { save = true; this.cache.numChildren = numChildren }
+            if (this.cache.totalSize !== totalSize) { save = true; this.cache.totalSize = totalSize }
+            if (this.cache.LastModified !== LastModified) { save = true; this.cache.LastModified = LastModified }
+            if (save) {
+                this.saveCache()
+            } else {
+                console.warn(`Redundant metadata check:`, this.cache)
+            }
+        } else {
+            console.warn(`No cache for ${this.bucket}/${this.key}, dropping metadata: totalSize ${totalSize}, mtime ${LastModified}`)
+        }
+    }
+
     checkMetadata(): Metadata | undefined {
         const { bucket, cache } = this
         if (cache) {
@@ -234,18 +267,10 @@ export class S3Fetcher {
                 return { numChildren: 1, totalSize: Size, LastModified, }
             },
             combineMetadata,
-            { totalSize: 0, numChildren: 0 }
+            { totalSize: 0, numChildren: 0, LastModified: null, }
         )
         if (result) {
-            const { numChildren, totalSize, LastModified } = result
-            if (this.cache) {
-                this.cache.numChildren = numChildren
-                this.cache.totalSize = totalSize
-                this.cache.LastModified = LastModified
-                this.saveCache()
-            } else {
-                throw Error(`Got checkMetadata result without cache present`)
-            }
+            this.maybeSaveMetadata(result)
         }
         return result
     }
@@ -370,18 +395,8 @@ export class S3Fetcher {
                     ),
                 ({Size, LastModified,}) => Promise.resolve({ totalSize: Size, LastModified, numChildren: 1 }),
                 combineMetadata,
-                { totalSize: 0, numChildren: 0, },
-                ({ numChildren, totalSize, LastModified, }) => {
-                    if (this.cache) {
-                        // console.log(`Setting metadata for ${bucket}/${key}: totalSize ${totalSize}, mtime ${LastModified}`)
-                        this.cache.numChildren = numChildren
-                        this.cache.totalSize = totalSize
-                        this.cache.LastModified = LastModified
-                        this.saveCache()
-                    } else {
-                        console.warn(`No cache for ${bucket}/${key}, dropping metadata: totalSize ${totalSize}, mtime ${LastModified}`)
-                    }
-                }
+                { totalSize: 0, numChildren: 0, LastModified: null, },
+                metadata => this.maybeSaveMetadata(metadata),
             )
         )
     }
@@ -398,7 +413,7 @@ export class S3Fetcher {
     }
 
     nextPage(): Promise<ListObjectsV2Output> {
-        const { bucket, key, s3, pageSize, IdentityPoolId, } = this
+        const { bucket, key, s3, pageSize, authenticated, } = this
         const Prefix = key ? (key[key.length - 1] == '/' ? key : (key + '/')) : key
         if (!s3) {
             throw Error("S3 client not initialized")
@@ -433,7 +448,7 @@ export class S3Fetcher {
             // console.log(`Fetching page idx ${numPages}`)
             const timestamp = moment()
             const pagePromise: Promise<ListObjectsV2Output> =
-                IdentityPoolId ?
+                authenticated ?
                     s3.listObjectsV2(params).promise() :
                     s3.makeUnauthenticatedRequest('listObjectsV2', params).promise()
             return pagePromise.then(page => {
@@ -465,21 +480,6 @@ export class S3Fetcher {
                 }
                 if (!truncated) {
                     this.cache.numChildren = numPages * pageSize + numChildren
-                    // const pages = cache.pages
-                    // const allDirs = ([] as Dir[]).concat(...pages.map(page => Page(page).dirs))
-
-                    //const allDirsComputed = allDirs.reduce((allsoFar, dir) => allSoFar && dir.cach)
-                    // if (!numDirs) {
-                    //     const files = ([] as File[]).concat(...pages.map(page => Page(page).files))
-                    //     const { totalSize, LastModified } = (
-                    //         files
-                    //             .map(({ Size, LastModified, }) => { return { totalSize: Size, LastModified, }})
-                    //             .reduce<Metadata>(combineMetadata, { totalSize: 0, numChildren: 0 })
-                    //     )
-                    //     console.assert(this.cache)
-                    //     this.cache.totalSize = totalSize
-                    //     this.cache.LastModified = LastModified
-                    // }
                     saveCache = true
                 }
                 if (saveCache) {

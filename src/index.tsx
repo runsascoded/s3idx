@@ -11,7 +11,7 @@ import {RouteAdapter} from "./route-adapter";
 function Router() {
     console.log("Router rendering")
     const { hostname, pathname, } = window.location
-    const rgx1 = /(?<bucket>.*)\.s3(\.(?<region>[^.]+))?\.amazonaws\.com$/
+    const rgx1 = /(?<bucket>.*)\.s3(-(?<region>[^.]+))?\.amazonaws\.com$/
     const rgx2 = /(?<bucket>.*)\.s3-website(-(?<region>[^.]+))?\.amazonaws\.com$/
     const match = hostname.match(rgx1) || hostname.match(rgx2)
     let { bucket } = match?.groups || {}

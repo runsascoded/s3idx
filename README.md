@@ -13,10 +13,17 @@ open https://$bucket.s3.amazonaws.com/index.html
 ```
 
 ## Example
-https://ctbk.s3.amazonaws.com/index.html:
+Here's `index.html` in action in the `ctbk` bucket, [ctbk.s3.amazonaws.com/index.html](https://ctbk.s3.amazonaws.com/index.html):
+
 ![](ctbk.gif)
 
-## Features
+Note:
+- paginated results
+- caching/pre-fetching for snappy responses
+- opt-in recursive fetching
+- total sizes / last modified times for directories (only when fully fetched)
+
+## Implementation Notes
 - Requests to S3 (`ListObjectsV2`) are cached for a configurable length of time (default: 10hrs)
 - "Recurse" checkbox (default: off) toggles fetching bucket/directory contents recursively (vs. just the immediate children of the current directory)
 - Changes to above settings (as well as others, e.g. size and datetime formats) are persisted in `localStorage`
@@ -26,27 +33,32 @@ TODO: make these GitHub issues
 
 ### Caching
 - [ ] implement recursive fetch mode (using `Prefix`-less ListObjectsV2)
-- [ ] Implement cache in `sql.js`
+- [ ] alternative cache in `sql.js`
+- [ ] propagate cache evictions up the directory tree
+- [ ] display remaining TTL for objects/pages
+- [ ] "Clear Cache" button → "🗑" / "♻️"
+- [ ] toggle auto-eviction vs. UI warning/highlighting stale info
 
 ### Table listing
 - [ ] toggle showing/hiding columns
+- [ ] render uncomputed values as links that trigger computation
 - [ ] sortable columns
 - [ ] searchable columns
-- [ ] hide pagination controls when < 1 page
-- [ ] render uncomputed values as links that trigger computation
 - [ ] add toggling for pagination params in URL
+- [ ] allow switching buckets in non-AWS-hosted mode
+- [ ] hide pagination controls when < 1 page
+- [ ] single-letter mode for IEC sizes
 
 ### Global Configs
-- [ ] initial global configs in `index.html`
-  - [ ] cache TTL
-  - [ ] recurse by default
-  - [ ] page size
-  - [ ] show page idx/size in URL query params
-  - [ ] authentication keys
-- [ ] global configs in "⚙️" tooltip somewhere
+- [ ] global configs in "⚙️" tooltip
+- [ ] hotkey edu in "⌨️" tooltip
+- [ ] configurable region/credentials
+- [ ] region/credentials per bucket
 
 ### Misc
 - [ ] check both `<bucket>.s3.amazonaws.com/…` and `s3.amazonaws.com/<bucket>/…` URL forms
 - [ ] audit/reduce bundle size
 - [ ] treemap view
 - [ ] DEP0005 deprecation warning during `npm run build`
+- [ ] better/structured logging
+- [ ] create Lambda that compiles `index.html` with various default configs set (or e.g. `sql.js` mode)

@@ -1,6 +1,6 @@
-import moment, {Moment} from "moment";
+import moment, {isMoment, Moment} from "moment";
 
-moment.locale('en', {
+moment.updateLocale('en', {
     relativeTime: {
         future: 'in %s',
         past: '%s ago',
@@ -19,7 +19,13 @@ moment.locale('en', {
     }
 });
 
-export function renderDatetime(m: Moment, fmt: DatetimeFmt): string {
+export function renderDatetime(arg: Moment | Date | string, fmt: DatetimeFmt): string {
+    let m: Moment
+    if (!isMoment(arg)) {
+        m = moment(arg)
+    } else {
+        m = arg
+    }
     if (fmt == 'relative') {
         return m.fromNow(true)
     } else {
