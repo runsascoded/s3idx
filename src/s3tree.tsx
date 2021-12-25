@@ -55,6 +55,10 @@ const MetadataEl = styled.span`
     margin-top: .75rem;
     margin-left: 1rem;
 `
+const GithubLink = styled.a`
+    margin-left: 1rem;
+    margin-top: 0.4rem;
+`
 
 const FilesList = styled.table`
     td,th {
@@ -65,6 +69,25 @@ const FilesList = styled.table`
         font-family: monospace;
     }
 `
+const TotalRow = styled.tr`
+    border-top: 1px solid black;
+    border-bottom: 1px solid black;
+    font-weight: bold;
+    background-color: #f8f8f8;
+`
+const InlineBreadcrumbs = styled.span`
+    span+span:before {
+        padding: 0.2em;
+        color: black;
+        content: "/";
+    }
+    &:before {
+        padding: 0.2em;
+        color: black;
+        content: "s3://";
+    }
+`
+const InlineBreadcrumb = styled.span``
 const textInputStyle = css`
     width: 2.6rem;
     text-align: right;
@@ -104,10 +127,11 @@ function stripPrefix(prefix: string[], k: string) {
 
 function DirRow(
     { Prefix: key }: Dir,
-    { bucket, bucketUrlRoot, urlPrefix, duration }: {
+    { bucket, bucketUrlRoot, urlPrefix, duration, datetimeFmt }: {
         bucket: string,
         bucketUrlRoot: boolean,
         duration: Duration,
+        datetimeFmt: string,
         urlPrefix?: string,
     },
 ) {
@@ -122,19 +146,29 @@ function DirRow(
             <Link to={url}>{name}</Link>
         </td>
         <td key="size">{totalSize ? renderSize(totalSize, 'iec') : ''}</td>
-        <td key="mtime">{mtime ? moment(mtime).format('YYYY-MM-DD') : ''}</td>
+        <td key="mtime">{mtime ? moment(mtime).format(datetimeFmt) : ''}</td>
     </tr>
 }
 
-function FileRow({ Key, LastModified, Size, }: File, { prefix }: { prefix: string[] }) {
+function FileRow({ Key, LastModified, Size, }: File, { prefix, datetimeFmt }: { prefix: string[], datetimeFmt: string }) {
     return <tr key={Key}>
         <td key="name">{Key ? stripPrefix(prefix, Key) : ""}</td>
         <td key="size">{renderSize(Size, 'iec')}</td>
-        <td key="mtime">{moment(LastModified).format('YYYY-MM-DD')}</td>
+        <td key="mtime">{moment(LastModified).format(datetimeFmt)}</td>
     </tr>
 }
 
-function TableRow(row: Row, extra: { bucket: string, bucketUrlRoot: boolean, duration: Duration, prefix: string[], urlPrefix?: string, }) {
+function TableRow(
+    row: Row,
+    extra: {
+        bucket: string,
+        bucketUrlRoot: boolean,
+        duration: Duration,
+        prefix: string[],
+        urlPrefix?: string,
+        datetimeFmt: string,
+    }
+) {
     return (
         (row as Dir).Prefix !== undefined
             ? DirRow(row as Dir, extra)
@@ -147,6 +181,7 @@ const usePageSize = createPersistedState('pageSize')
 const usePaginationInfoInURL = createPersistedState('paginationInfoInURL')
 const useTtl = createPersistedState('ttl')
 const useEagerMetadata = createPersistedState('eagerMetadata')
+const useDatetimeFmt = createPersistedState('datetimeFmt')
 
 const d1 = moment.duration(1, 'd')
 
@@ -157,6 +192,8 @@ function toPageIdxStr(idx: number) {
 export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: string }) {
     const params = useParams()
     const navigate = useNavigate()
+
+    const [ datetimeFmt, setDatetimeFmt ] = useDatetimeFmt('YYYY-MM-DD hh:mm:ss')
 
     const path = (params['*'] || '').replace(/\/$/, '').replace(/^\//, '')
     const pathPieces = (prefix ? prefix.split('/') : []).concat(path ? path.split('/') : [])
@@ -198,13 +235,14 @@ export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: strin
 
     const [ metadataNonce, setMetadataNonce ] = useState({})
     const metadata = fetcher.checkMetadata()
-    let { numChildren: numChildren, totalSize, LastModified } =
+    let { numChildren: numChildren, totalSize, LastModified, } =
         metadata
             ? metadata
             : { numChildren: undefined, totalSize: undefined, LastModified: undefined }
     // `numChildren` is sometimes known even if the others aren't (it only requires paging to the end of the bucket,
     // not computing child directories' sizes recursively)
     numChildren = numChildren === undefined ? fetcher?.cache?.numChildren : numChildren
+    const timestamp = fetcher.cache?.timestamp
     console.log("Metadata:", metadata, "cache:", fetcher.cache)
 
     const [ paginationInfoInURL, setPaginationInfoInURL ] = usePaginationInfoInURL(true)
@@ -353,10 +391,12 @@ export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: strin
                     }
                 </Breadcrumb>
                 <MetadataEl>
-                    <span className="metadatum">{numChildren === undefined ? '?' : numChildren} children,&nbsp;</span>
-                    <span className="metadatum">total size {totalSize !== undefined ? renderSize(totalSize, 'iec') : '?'}{totalSize ? ` (${totalSize})` : ''},&nbsp;</span>
-                    <span className="metadatum">last modified {LastModified ? moment(LastModified).format('YYYY-MM-DD') : '?'}</span>
+                    <span className="metadatum">{numChildren === undefined ? '?' : numChildren} children,{' '}</span>
+                    <span className="metadatum">{timestamp ? moment(timestamp).format(datetimeFmt) : '?'}</span>
                 </MetadataEl>
+                <GithubLink href="https://github.com/runsascoded/s3idx/issues">
+                    <img src={`data:image/png;base64,${githubLogo}`}/>
+                </GithubLink>
             </HeaderRow>
             <DivRow>
                 <FilesList>
@@ -367,9 +407,25 @@ export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: strin
                         <th key="mtime">Modified</th>
                     </tr>
                     </thead>
-                    <tbody>{
+                    <tbody>
+                    <TotalRow>
+                        <td key="name"><InlineBreadcrumbs>
+                            {
+                                ancestors.map(({ key, name }) => {
+                                    const path = `${bucket}/${key}`
+                                    const url = bucketUrlRoot ? `/${bucket}/${key}` : (prefix ? `/${stripPrefix(prefix.split('/'), key)}` :`/${key}`)
+                                    return <InlineBreadcrumb key={path}>
+                                        <Link to={url}>{name}</Link>
+                                    </InlineBreadcrumb>
+                                })
+                            }
+                        </InlineBreadcrumbs></td>
+                        <td key="size">{totalSize !== undefined ? renderSize(totalSize, 'iec') : '?'}</td>
+                        <td key="mtime">{LastModified ? moment(LastModified).format(datetimeFmt) : '?'}</td>
+                    </TotalRow>
+                    {
                         rows.map(row =>
-                            TableRow(row, { bucket, prefix: keyPieces, bucketUrlRoot, urlPrefix: prefix, duration, })
+                            TableRow(row, { bucket, prefix: keyPieces, bucketUrlRoot, urlPrefix: prefix, duration, datetimeFmt })
                         )
                     }
                     </tbody>
@@ -432,14 +488,6 @@ export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: strin
                     </label>
                 </RecurseControl>
             </FooterRow>
-            <DivRow>
-                <a href="https://github.com/runsascoded/s3idx/issues">
-                    {/*<img src="/assets/gh-32x32.png" />*/}
-                    <img
-                        src={`data:image/png;base64,${githubLogo}`}
-                    />
-                </a>
-            </DivRow>
         </Container>
     )
 }

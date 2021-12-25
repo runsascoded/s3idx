@@ -78,7 +78,7 @@ const combineMetadata = (
     return {
         numChildren: lc + rc,
         totalSize: ls + rs,
-        LastModified: lm === undefined ? rm : rm === undefined ? lm : lm > rm ? lm : rm,
+        LastModified: lm === undefined ? rm : (rm === undefined ? lm : (lm > rm ? lm : rm)),
     }
 }
 
