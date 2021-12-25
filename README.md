@@ -17,26 +17,24 @@ https://ctbk.s3.amazonaws.com/index.html:
 ![](ctbk.gif)
 
 ## Features
-- requests to S3 (`ListObjectsV2`) are cached for 24hrs
-- "Recurse" checkbox (default unchecked, persisted in `localStorage`) toggles fetching bucket/directory contents recursively
+- Requests to S3 (`ListObjectsV2`) are cached for a configurable length of time (default: 10hrs)
+- "Recurse" checkbox (default: off) toggles fetching bucket/directory contents recursively (vs. just the immediate children of the current directory)
+- Changes to above settings (as well as others, e.g. size and datetime formats) are persisted in `localStorage`
 
 ## Roadmap / Feature wishlist
 TODO: make these GitHub issues
 
 ### Caching
-- [ ] display TTL / "fetched at" info
 - [ ] implement recursive fetch mode (using `Prefix`-less ListObjectsV2)
 - [ ] Implement cache in `sql.js`
 
 ### Table listing
-- [ ] column formatters:
-  - [ ] size: IEC, ISO, bytes
-  - [ ] time: relative, YYYY-MM-DD, YYYY-MM-DDTHH:MM:SS
 - [ ] toggle showing/hiding columns
 - [ ] sortable columns
 - [ ] searchable columns
 - [ ] hide pagination controls when < 1 page
-- [ ] uncomputed values rendered as links that trigger computation
+- [ ] render uncomputed values as links that trigger computation
+- [ ] add toggling for pagination params in URL
 
 ### Global Configs
 - [ ] initial global configs in `index.html`
@@ -51,3 +49,4 @@ TODO: make these GitHub issues
 - [ ] check both `<bucket>.s3.amazonaws.com/…` and `s3.amazonaws.com/<bucket>/…` URL forms
 - [ ] audit/reduce bundle size
 - [ ] treemap view
+- [ ] DEP0005 deprecation warning during `npm run build`

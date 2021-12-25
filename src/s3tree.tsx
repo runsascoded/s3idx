@@ -1,15 +1,20 @@
 import React, {useCallback, useEffect, useMemo, useState,} from "react";
-import moment, {Duration} from 'moment'
+import moment, {Duration, Moment} from 'moment'
 import {Link, useNavigate, useParams} from "react-router-dom";
 import _ from "lodash";
 import useEventListener from "@use-it/event-listener";
 import {Dir, File, parseDuration, Row, S3Fetcher} from "./s3fetcher";
-import {renderSize} from "./size";
+import {renderSize, SizeFmt} from "./size";
 import {useQueryParam} from "use-query-params";
 import {intParam, stringParam} from "./search-params"
 import createPersistedState from "use-persisted-state";
 import styled, {css} from "styled-components"
 import * as rb from "react-bootstrap"
+import ReactTooltip from "react-tooltip"
+import * as mui from "@mui/material"
+import {ThemeProvider, Tooltip, tooltipClasses, TooltipProps} from "@mui/material"
+import {Option, Radios} from "./radios";
+import theme from "./theme";
 
 const githubLogo = "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAyRpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADw/eHBhY2tldCBiZWdpbj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+IDx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3JlIDUuMy1jMDExIDY2LjE0NTY2MSwgMjAxMi8wMi8wNi0xNDo1NjoyNyAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvIiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL21tLyIgeG1sbnM6c3RSZWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZVJlZiMiIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIENTNiAoTWFjaW50b3NoKSIgeG1wTU06SW5zdGFuY2VJRD0ieG1wLmlpZDpFNTE3OEEyQTk5QTAxMUUyOUExNUJDMTA0NkE4OTA0RCIgeG1wTU06RG9jdW1lbnRJRD0ieG1wLmRpZDpFNTE3OEEyQjk5QTAxMUUyOUExNUJDMTA0NkE4OTA0RCI+IDx4bXBNTTpEZXJpdmVkRnJvbSBzdFJlZjppbnN0YW5jZUlEPSJ4bXAuaWlkOkU1MTc4QTI4OTlBMDExRTI5QTE1QkMxMDQ2QTg5MDREIiBzdFJlZjpkb2N1bWVudElEPSJ4bXAuZGlkOkU1MTc4QTI5OTlBMDExRTI5QTE1QkMxMDQ2QTg5MDREIi8+IDwvcmRmOkRlc2NyaXB0aW9uPiA8L3JkZjpSREY+IDwveDp4bXBtZXRhPiA8P3hwYWNrZXQgZW5kPSJyIj8+m4QGuQAAAyRJREFUeNrEl21ojWEYx895TDPbMNlBK46IUiNmPvHBSUjaqc0H8pF5+aDUKPEBqU2NhRQpX5Rv5jWlDIWlMCv7MMSWsWwmb3tpXub4XXWdPHvc9/Gc41nu+nedc7/8r/99PffLdYdDPsvkwsgkTBwsA/PADJCnzX2gHTwBt8Hl7p537/3whn04XoDZDcpBlk+9P8AFcAghzRkJwPF4zGGw0Y9QS0mAM2AnQj77FqCzrtcwB1Hk81SYojHK4DyGuQ6mhIIrBWB9Xm7ug/6B/nZrBHBegrkFxoVGpnwBMSLR9EcEcC4qb8pP14BWcBcUgewMnF3T34VqhWMFkThLJAalwnENOAKiHpJq1FZgI2AT6HZtuxZwR9GidSHtI30jOrbawxlVX78/AbNfhHlomEUJJI89O2MqeE79T8/nk8nMBm/dK576hZgmA3cp/R4l9/UeSxiHLVIlNm4nFfT0bxyuIj7LHRTKai+zdJobwMKzcZSJb0ePV5PKN+BqAAKE47UlMnERELMM3EdYP/yrd+XYb2mOiYBiQ8OQnoRBlXrl9JZix7D1pHTazu4MoyBcnYamqAjIMTR8G4FT8LuhLsexXYYjICBiqhQBvYb6fLZIJCjPypVvaOoVAW2WcasCnL2Nq82xHJNSqlCeFcDshaPK0twkAhosjZL31QYw+1rlMpWGMArl23SBsZZO58F2tlJXmjOXS+s4WGvpMiBJT/I2PInZ6lIs9/hBsNS1hS6BG0DSqmYEDRlCXQrmy50P1oDRKTSegmNbUsA0zDMwRhPJXeCE3vWLPQMvan6X8AgIa1vcR4AkGZkDR4ejJ1UHpsaVI0g2LInpOsNFUud1rhxSV+fzC9Woz2EZkWQuja7/B+jUrgtIMpy9YCW4n4K41YfzRneW5E1KJTe4B2Zq1Q5EHEtj4U3AfEzR5SVY4l7QYQPJdN2as7RKBF0BPZqqH4VgMAMBL8Byxr7y8zCZiDlnOcEKIPmUpgB5Z2ww5RdOiiRiNajUmWda5IG6WbhsyY2fx6m8gLcoJDJFkH219M3We1+cnda93pfycZpIJEL/s/wSYADmOAwAQgdpBAAAAABJRU5ErkJggg=="
 
@@ -61,19 +66,46 @@ const GithubLink = styled.a`
 `
 
 const FilesList = styled.table`
+    tr {
+        line-height: 1.6rem;
+    }
     td,th {
         text-align: right;
-        padding-right: 1rem;
+        padding: 0 0.7rem;
     }
     td {
         font-family: monospace;
     }
 `
+// const ColumnSettingsIcon = styled.span`
+//     padding: 0.2rem;
+//     cursor: pointer;
+// `
+// const HoverTooltip = styled(ReactTooltip)`
+//     pointer-events: auto !important;
+//     text-align: left;
+//     font-size: 1rem;
+//     font-weight: normal;
+//     &:hover {
+//         visibility: visible !important;
+//         opacity: 1 !important;
+//     }
+//     .control-header {
+//         margin-bottom: 0.1rem;
+//         font-weight: bold;
+//         font-size: 1rem;
+//     }
+//     .sub-control > label {
+//         display: block;
+//         margin-bottom: 0rem;
+//         font-size: 1rem;
+//     }
+// `
 const TotalRow = styled.tr`
-    border-top: 1px solid black;
-    border-bottom: 1px solid black;
+    /*border-top: 1px solid grey;*/
+    /*border-bottom: 1px solid grey;*/
     font-weight: bold;
-    background-color: #f8f8f8;
+    background-color: #f0f0f0;
 `
 const InlineBreadcrumbs = styled.span`
     span+span:before {
@@ -113,6 +145,9 @@ const Recurse = styled.input`
     margin-left: 0.3rem;
     vertical-align: middle;
 `
+const SettingsIcon = styled.span`
+    margin-right: 0.3rem;
+`
 
 const { ceil, floor, max, min } = Math
 
@@ -125,13 +160,97 @@ function stripPrefix(prefix: string[], k: string) {
     return pcs.slice(prefix.length).join('/')
 }
 
+export type Setter<T> = React.Dispatch<React.SetStateAction<T>>
+export const stopPropagation = (e: React.MouseEvent<HTMLInputElement>) => e.stopPropagation()
+
+type HeaderSettings<T extends string> = {
+    options: (Option<T> | T)[]
+    choice: T
+    cb: (choice: T) => void
+}
+
+function ColumnHeader<T extends string>(
+    label: string,
+    headerSettings?: HeaderSettings<T>,
+) {
+    const body: JSX.Element =
+        headerSettings ?
+            <Radios label={label} {...headerSettings} /> :
+            <div>no choices available</div>
+
+    return (
+        <ColumnHeaderTooltip disableFocusListener arrow placement="bottom-start" title={
+            <div className="settings-tooltip" onClick={stopPropagation}>
+                {body}
+            </div>
+        }>
+            <span className="header-span">
+                <SettingsIcon>⚙️</SettingsIcon>
+                {label}
+            </span>
+        </ColumnHeaderTooltip>
+    )
+}
+
+const ColumnHeaderTooltip = mui.styled(
+    ({ className, ...props }: TooltipProps) => <Tooltip {...props} classes={{ popper: className }} />
+)(({ theme }) => ({
+    [`& .${tooltipClasses.tooltip}`]: {
+        backgroundColor: theme.palette.common.black,
+        color: theme.palette.common.white,
+        fontSize: '1rem',
+        marginBottom: '0.2rem',
+    },
+    '.settings-tooltip': {
+        margin: '0.3rem 0',
+    },
+    '.control-header': {
+        fontWeight: 'bold',
+        marginBottom: '0.4rem',
+    },
+    '.sub-control > label': {
+        display: 'block',
+        marginBottom: 0,
+    }
+}));
+
+moment.locale('en', {
+    relativeTime: {
+        future: 'in %s',
+        past: '%s ago',
+        s:  'seconds',
+        ss: '%ss',
+        m:  'a minute',
+        mm: '%dm',
+        h:  'an hour',
+        hh: '%dh',
+        d:  'a day',
+        dd: '%dd',
+        M:  'a month',
+        MM: '%dM',
+        y:  'a year',
+        yy: '%dY'
+    }
+});
+
+function renderDatetime(m: Moment, fmt: DatetimeFmt): string {
+    if (fmt == 'relative') {
+        return m.fromNow(true)
+    } else {
+        return m.format(fmt)
+    }
+}
+
+type DatetimeFmt = 'YYYY-MM-DD' | 'YYYY-MM-DD HH:mm:ss' | 'relative'
+
 function DirRow(
     { Prefix: key }: Dir,
-    { bucket, bucketUrlRoot, urlPrefix, duration, datetimeFmt }: {
+    { bucket, bucketUrlRoot, urlPrefix, duration, datetimeFmt, sizeFmt, }: {
         bucket: string,
         bucketUrlRoot: boolean,
         duration: Duration,
-        datetimeFmt: string,
+        datetimeFmt: DatetimeFmt,
+        sizeFmt: SizeFmt
         urlPrefix?: string,
     },
 ) {
@@ -145,16 +264,18 @@ function DirRow(
         <td key="name">
             <Link to={url}>{name}</Link>
         </td>
-        <td key="size">{totalSize ? renderSize(totalSize, 'iec') : ''}</td>
-        <td key="mtime">{mtime ? moment(mtime).format(datetimeFmt) : ''}</td>
+        <td key="size">{totalSize ? renderSize(totalSize, sizeFmt) : ''}</td>
+        <td key="mtime">{mtime ? renderDatetime(moment(mtime), datetimeFmt) : ''}</td>
     </tr>
 }
 
-function FileRow({ Key, LastModified, Size, }: File, { prefix, datetimeFmt }: { prefix: string[], datetimeFmt: string }) {
+function FileRow(
+    { Key, LastModified, Size, }: File,
+    { prefix, datetimeFmt, sizeFmt, }: { prefix: string[], datetimeFmt: DatetimeFmt, sizeFmt: SizeFmt, }) {
     return <tr key={Key}>
         <td key="name">{Key ? stripPrefix(prefix, Key) : ""}</td>
-        <td key="size">{renderSize(Size, 'iec')}</td>
-        <td key="mtime">{moment(LastModified).format(datetimeFmt)}</td>
+        <td key="size">{renderSize(Size, sizeFmt)}</td>
+        <td key="mtime">{renderDatetime(moment(LastModified), datetimeFmt)}</td>
     </tr>
 }
 
@@ -166,7 +287,8 @@ function TableRow(
         duration: Duration,
         prefix: string[],
         urlPrefix?: string,
-        datetimeFmt: string,
+        datetimeFmt: DatetimeFmt,
+        sizeFmt: SizeFmt,
     }
 ) {
     return (
@@ -182,6 +304,7 @@ const usePaginationInfoInURL = createPersistedState('paginationInfoInURL')
 const useTtl = createPersistedState('ttl')
 const useEagerMetadata = createPersistedState('eagerMetadata')
 const useDatetimeFmt = createPersistedState('datetimeFmt')
+const useSizeFmt = createPersistedState('sizeFmt')
 
 const d1 = moment.duration(1, 'd')
 
@@ -193,7 +316,8 @@ export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: strin
     const params = useParams()
     const navigate = useNavigate()
 
-    const [ datetimeFmt, setDatetimeFmt ] = useDatetimeFmt('YYYY-MM-DD hh:mm:ss')
+    const [ datetimeFmt, setDatetimeFmt ] = useDatetimeFmt<DatetimeFmt>('YYYY-MM-DD HH:mm:ss')
+    const [ sizeFmt, setSizeFmt ] = useSizeFmt<SizeFmt>('iec')
 
     const path = (params['*'] || '').replace(/\/$/, '').replace(/^\//, '')
     const pathPieces = (prefix ? prefix.split('/') : []).concat(path ? path.split('/') : [])
@@ -210,7 +334,7 @@ export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: strin
     const [ s3PageSize, setS3PageSize ] = useState(1000)
 
     const [region, setRegion] = useState('us-east-1')  // TODO
-    const [ ttl, setTtl ] = useTtl<string>('1d')
+    const [ ttl, setTtl ] = useTtl<string>('10h')
     const duration = parseDuration(ttl) || d1
 
     // Setting a new Nonce object is used to trigger `fetcher` to re-initialize itself from scratch after a
@@ -376,7 +500,29 @@ export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: strin
         setFetcherNonce({})
     }
 
+    const sizeHeaderSettings: HeaderSettings<SizeFmt> = {
+        options: [
+            { data: 'iec', label: 'Human Readable (IEC)', },
+            { data: 'iso', label: 'Human Readable (ISO)', },
+            { data: 'bytes', label: 'Bytes', },
+        ],
+        choice: sizeFmt,
+        cb: setSizeFmt,
+    }
+
+    const datetimeOptions: Option<DatetimeFmt>[] = [
+        { label: 'Relative', data: 'relative', },
+        { label: 'YYYY-MM-DD HH:mm:ss', data: 'YYYY-MM-DD HH:mm:ss', },
+        { label: 'YYYY-MM-DD', data: 'YYYY-MM-DD', }
+    ]
+    const datetimeHeaderSettings: HeaderSettings<DatetimeFmt> = {
+        options: datetimeOptions,
+        choice: datetimeFmt,
+        cb: setDatetimeFmt,
+    }
+
     return (
+        <ThemeProvider theme={theme}>
         <Container>
             <HeaderRow>
                 <Breadcrumb>
@@ -392,7 +538,7 @@ export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: strin
                 </Breadcrumb>
                 <MetadataEl>
                     <span className="metadatum">{numChildren === undefined ? '?' : numChildren} children,{' '}</span>
-                    <span className="metadatum">{timestamp ? moment(timestamp).format(datetimeFmt) : '?'}</span>
+                    <span className="metadatum">fetched {timestamp ? renderDatetime(moment(timestamp), datetimeFmt) : '?'}</span>
                 </MetadataEl>
                 <GithubLink href="https://github.com/runsascoded/s3idx/issues">
                     <img src={`data:image/png;base64,${githubLogo}`}/>
@@ -403,8 +549,41 @@ export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: strin
                     <thead>
                     <tr>
                         <th key="name">Name</th>
-                        <th key="size">Size</th>
-                        <th key="mtime">Modified</th>
+                        <th key="size">
+                            {ColumnHeader('Size', sizeHeaderSettings)}
+                            {/*<ColumnHeader<SizeFmt> label="Size" headerSettings={sizeHeaderSettings} />*/}
+                            {/*<ColumnSettingsIcon>*/}
+                            {/*    <a data-tip data-for="size-settings">⚙</a>*/}
+                            {/*    <HoverTooltip id="size-settings" effect="solid" delayHide={1000}>*/}
+                            {/*        size!*/}
+                            {/*    </HoverTooltip>*/}
+                            {/*️</ColumnSettingsIcon>*/}
+                            {/*{' '}Size*/}
+                        </th>
+                        <th key="mtime">
+                            {ColumnHeader('Modified', datetimeHeaderSettings)}
+                           {/* <ColumnSettingsIcon>*/}
+                           {/*     <a data-tip*/}
+                           {/*        data-for="mtime-settings"*/}
+                           {/*        // data-event="click"*/}
+                           {/*     >⚙</a>*/}
+                           {/*     <HoverTooltip*/}
+                           {/*         id="mtime-settings"*/}
+                           {/*         effect="solid"*/}
+                           {/*         delayHide={1000}*/}
+                           {/*         place="bottom"*/}
+                           {/*         clickable={true}*/}
+                           {/*     >*/}
+                           {/*         <Radios*/}
+                           {/*             label="Format"*/}
+                           {/*             options={datetimeOptions}*/}
+                           {/*             choice={datetimeFmt}*/}
+                           {/*             cb={setDatetimeFmt}*/}
+                           {/*         />*/}
+                           {/*     </HoverTooltip>*/}
+                           {/*️</ColumnSettingsIcon>*/}
+                           {/* {' '}Modified*/}
+                        </th>
                     </tr>
                     </thead>
                     <tbody>
@@ -420,12 +599,23 @@ export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: strin
                                 })
                             }
                         </InlineBreadcrumbs></td>
-                        <td key="size">{totalSize !== undefined ? renderSize(totalSize, 'iec') : '?'}</td>
-                        <td key="mtime">{LastModified ? moment(LastModified).format(datetimeFmt) : '?'}</td>
+                        <td key="size">{totalSize !== undefined ? renderSize(totalSize, sizeFmt) : '?'}</td>
+                        <td key="mtime">{LastModified ? renderDatetime(moment(LastModified), datetimeFmt) : '?'}</td>
                     </TotalRow>
                     {
                         rows.map(row =>
-                            TableRow(row, { bucket, prefix: keyPieces, bucketUrlRoot, urlPrefix: prefix, duration, datetimeFmt })
+                            TableRow(
+                                row,
+                                {
+                                    bucket,
+                                    prefix: keyPieces,
+                                    bucketUrlRoot,
+                                    urlPrefix: prefix,
+                                    duration,
+                                    datetimeFmt,
+                                    sizeFmt,
+                                }
+                            )
                         )
                     }
                     </tbody>
@@ -489,5 +679,6 @@ export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: strin
                 </RecurseControl>
             </FooterRow>
         </Container>
+        </ThemeProvider>
     )
 }

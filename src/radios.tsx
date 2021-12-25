@@ -1,6 +1,6 @@
 import React, {ReactNode} from "react";
 
-type Option<T> = {
+export type Option<T> = {
     label?: string | ReactNode
     data: T
     disabled?: boolean

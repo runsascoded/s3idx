@@ -40,6 +40,10 @@ done
 
 set -- "${ARGS[@]}"
 
+if [ -z "$tag" ]; then
+  tag="$(git tag --points-at HEAD)"
+fi
+
 args=(--content-type="text/html; charset=utf-8" --acl public-read)
 
 if [ -n "$cache" ]; then
