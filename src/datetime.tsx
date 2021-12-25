@@ -4,17 +4,17 @@ moment.locale('en', {
     relativeTime: {
         future: 'in %s',
         past: '%s ago',
-        s:  'seconds',
+        s:  '%ss',
         ss: '%ss',
-        m:  'a minute',
+        m:  '%dm',
         mm: '%dm',
-        h:  'an hour',
+        h:  '%dh',
         hh: '%dh',
-        d:  'a day',
+        d:  '%dd',
         dd: '%dd',
-        M:  'a month',
+        M:  '%dM',
         MM: '%dM',
-        y:  'a year',
+        y:  '%dY',
         yy: '%dY'
     }
 });
