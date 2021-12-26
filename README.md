@@ -164,6 +164,7 @@ TODO: make these GitHub issues
 - [ ] display remaining TTL for objects/pages
 - [ ] "Clear Cache" button → "🗑" / "♻️"
 - [ ] toggle auto-eviction vs. UI warning/highlighting stale info
+- [ ] file sizes not re-rendered as cleared after cache clear
 
 ### Table listing
 - [ ] toggle showing/hiding columns
@@ -181,14 +182,17 @@ TODO: make these GitHub issues
 - [ ] configurable region/credentials
 - [ ] region/credentials per bucket
 
+### S3 API
+- [ ] look up buckets' region, CORS policy
+- [ ] create Lambda that compiles `index.html` with various default configs set (or e.g. `sql.js` mode)
+- [ ] support deploying to a subdirectory within a bucket
+- [ ] configurable S3 endpoint
+- [ ] support blob download
+- [ ] support click-to-copy paths to clipboard
+
 ### Misc
 - [ ] audit/reduce bundle size
 - [ ] treemap view
 - [ ] DEP0005 deprecation warning during `npm run build`
 - [ ] better/structured logging
-- [ ] support blob download
-- [ ] support click-to-copy paths to clipboard
 - [ ] source documentation
-- [ ] create Lambda that compiles `index.html` with various default configs set (or e.g. `sql.js` mode)
-- [ ] support deploying to a subdirectory within a bucket
-- [ ] configurable S3 endpoint
