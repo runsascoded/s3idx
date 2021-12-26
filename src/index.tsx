@@ -11,22 +11,33 @@ import {RouteAdapter} from "./route-adapter";
 function Router() {
     console.log("Router rendering")
     const { hostname, pathname, } = window.location
-    const rgx1 = /(?<bucket>.*)\.s3(-(?<region>[^.]+))?\.amazonaws\.com$/
-    const rgx2 = /(?<bucket>.*)\.s3-website(-(?<region>[^.]+))?\.amazonaws\.com$/
-    const match = hostname.match(rgx1) || hostname.match(rgx2)
+    const rgx = /((?<bucket>.*)\.)?s3(-website)?(\.(?<region>[^.]+))?\.amazonaws\.com$/
+    let endpoint = ''
+    const match = hostname.match(rgx)
     let { bucket } = match?.groups || {}
-    let prefix
-    if (bucket) {
-        prefix = pathname.replace(/\/.*?$/, '')
-        console.log(`Parsed bucket ${bucket}, prefix ${prefix} from URL hostname ${hostname} / pathname ${pathname}`)
-    } else {
-        const rgx = /s3(\.(?<region>[^.]+))?\.amazonaws\.com$/
-        if (hostname.match(rgx)) {
-            const pieces = pathname.replace(/^\//, '').split('/')
-            bucket = pieces[0]
-            if (bucket) {
-                prefix = pieces.slice(1, pieces.length - 1).join('/')
-                console.log(`Parsed bucket ${bucket}, prefix ${prefix} from URL pathname ${pathname}`)
+    let pathPrefix
+    if (match) {
+        if (bucket) {
+            pathPrefix = pathname.replace(/\/.*?$/, '')
+            console.log(`Parsed bucket ${bucket}, prefix ${pathPrefix} from URL hostname ${hostname}, pathname ${pathname}`)
+        } else {
+            const rgx = /s3(\.(?<region>[^.]+))?\.amazonaws\.com$/  // TODO: factor with s3tree
+            if (hostname.match(rgx)) {
+                const pieces = pathname.replace(/^\//, '').split('/')
+                bucket = pieces[0]
+                if (bucket) {
+                    // Redirect URLs of the form `s3.amazonaws.com/<bucket>` to `<bucket>.s3.amazonaws.com`, for
+                    // security reasons
+                    if (!bucket.includes('.')) {
+                        // One exception is buckets that have a dot (`.`) in their name, for which S3's default HTTPS
+                        // certificate setup doesn't work correctly at `<bucket>.s3.amazonaws.com`, and so are better
+                        // viewed at `s3.amazonaws.com/<bucket>`.
+                        const newUrl = `https://${bucket}.s3.amazonaws.com/index.html`
+                        console.log(`Redirecting to ${newUrl}`)
+                        window.location.assign(newUrl)
+                        return null
+                    }
+                }
             }
         }
     }
@@ -34,7 +45,7 @@ function Router() {
         <HashRouter>
             <QueryParamProvider ReactRouterRoute={RouteAdapter}>
                 <Routes>
-                    <Route path="/*" element={<S3Tree bucket={bucket} prefix={prefix} />} />
+                    <Route path="/*" element={<S3Tree bucket={bucket} pathPrefix={pathPrefix} endpoint={endpoint} />} />
                 </Routes>
             </QueryParamProvider>
         </HashRouter>

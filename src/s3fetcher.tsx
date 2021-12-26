@@ -10,6 +10,7 @@ import {
 import moment, {Duration, DurationInputArg2, Moment} from "moment";
 import AWS from "aws-sdk";
 import {CredentialsOptions} from "aws-sdk/lib/credentials";
+import {Endpoint} from "aws-sdk/lib/endpoint";
 
 const { ceil, floor, max, min } = Math
 
@@ -117,6 +118,8 @@ export class S3Fetcher {
     cache?: Cache
     cacheKey: string
     ttl?: Duration
+    endpoint?: string | Endpoint
+    s3BucketEndpoint?: boolean
 
     constructor(
         {
@@ -125,6 +128,8 @@ export class S3Fetcher {
             key,
             IdentityPoolId,
             credentials,
+            s3BucketEndpoint,  // TODO: remove
+            endpoint,
             ttl,
             pageSize,
             cacheCb,
@@ -134,6 +139,8 @@ export class S3Fetcher {
             key?: string,
             IdentityPoolId?: string,
             credentials?: CredentialsOptions
+            s3BucketEndpoint?: boolean
+            endpoint?: string | Endpoint
             ttl?: Duration | string,
             pageSize?: number,
             cacheCb?: (cache: Cache) => void,
@@ -145,6 +152,8 @@ export class S3Fetcher {
         this.pageSize = pageSize || 1000
         this.authenticated = !!IdentityPoolId || !!credentials
         this.cacheCb = cacheCb
+        this.s3BucketEndpoint = s3BucketEndpoint
+        this.endpoint = endpoint
 
         if (region) {
             AWS.config.region = region;
@@ -157,7 +166,8 @@ export class S3Fetcher {
         } else if (credentials) {
             AWS.config.credentials = credentials
         }
-        this.s3 = new AWS.S3({});
+        AWS.config.s3BucketEndpoint = !!s3BucketEndpoint
+        this.s3 = new AWS.S3({ endpoint });
         const cacheKeyObj = key ? { bucket, key } : { bucket }
         this.cacheKey = JSON.stringify(cacheKeyObj)
         const cacheStr = localStorage.getItem(this.cacheKey)
@@ -214,7 +224,7 @@ export class S3Fetcher {
     }
 
     dirs(): S3Fetcher[] | undefined {
-        const { bucket, cache } = this
+        const { bucket, cache, endpoint, s3BucketEndpoint, } = this
         if (cache) {
             const {pages, numChildren} = cache
             if (numChildren !== undefined) {
@@ -222,7 +232,7 @@ export class S3Fetcher {
                 return ([] as S3Fetcher[]).concat(
                     ...pages.map(Page).map(page =>
                         page.dirs.map(dir =>
-                            new S3Fetcher({bucket, key: dir.Prefix,})
+                            new S3Fetcher({ bucket, key: dir.Prefix, endpoint, s3BucketEndpoint, })
                         )
                     )
                 )
@@ -247,7 +257,7 @@ export class S3Fetcher {
     }
 
     checkMetadata(): Metadata | undefined {
-        const { bucket, cache } = this
+        const { bucket, cache, endpoint, s3BucketEndpoint } = this
         if (cache) {
             const { numChildren, totalSize, LastModified, } = cache
             if (numChildren !== undefined && totalSize !== undefined && LastModified !== undefined) {
@@ -257,7 +267,7 @@ export class S3Fetcher {
         const result = this.reduceSync<Metadata>(
             dir => {
                 const metadata =
-                    new S3Fetcher({ bucket, key: dir.Prefix, })
+                    new S3Fetcher({ bucket, key: dir.Prefix, endpoint, s3BucketEndpoint, })
                         .checkMetadata()
                 if (!metadata) return
                 const { totalSize, LastModified } = metadata
@@ -378,7 +388,7 @@ export class S3Fetcher {
     }
 
     computeMetadata(): Promise<Metadata> {
-        const { bucket, key } = this
+        const { bucket, endpoint, s3BucketEndpoint } = this
         const cached = { totalSize: this.cache?.totalSize, LastModified: this.cache?.LastModified }
         if (cached.totalSize !== undefined && cached.LastModified !== undefined) {
             // console.log(`computeMetadata: ${bucket}/${key} cache hit`)
@@ -388,7 +398,7 @@ export class S3Fetcher {
         return (
             this.reduce<Metadata>(
                 dir =>
-                    new S3Fetcher({ bucket, key: dir.Prefix }).computeMetadata().then(
+                    new S3Fetcher({ bucket, key: dir.Prefix, endpoint, s3BucketEndpoint, }).computeMetadata().then(
                         ({ totalSize, LastModified }) => {
                             return { numChildren: 1, totalSize, LastModified }
                         }

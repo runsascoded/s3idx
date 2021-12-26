@@ -15,7 +15,7 @@ import theme from "./theme";
 import {DatetimeFmt, renderDatetime} from "./datetime";
 import {ColumnHeader, HeaderSettings} from "./column-header";
 import {stripPrefix} from "./utils";
-import {GithubIssuesLink} from "./github-link";
+import {GithubIssuesLink, issuesUrl} from "./github-link";
 import {CredentialsOptions} from "aws-sdk/lib/credentials";
 
 const Container = styled(rb.Container)`
@@ -24,11 +24,17 @@ const Container = styled(rb.Container)`
         font-size: 1em;
         margin: 0 0.3rem;
     }
+    h2 {
+        font-size: 1.6em;
+        margin-top: 0.4em;
+    }
     h3 {
-        font-size: 1.4rem;
+        font-size: 1.4em;
+        margin-top: 0.7em;
     }
     h4 {
-        font-size: 1.2rem;
+        font-size: 1.2em;
+        margin-top: 0.7em;
     }
 `
 const RowStyle = css`
@@ -58,7 +64,6 @@ const PaginationRow = styled(DivRow)`
 `
 const Button = styled.button`
     font-size: 1em;
-    margin-left: 1em;
     padding: 0 0.5em;
     border: 1px solid #bbb;
     cursor: pointer;
@@ -125,18 +130,31 @@ const PageNumber = styled.span`
     margin-right: 0.5rem;
 `
 const Credentials = styled.div`
+    table.credentials {
+        margin-bottom: 0.5em;
+    }
     td:first-child {
         padding-right: 0.4em;
         text-align: right;
     }
+    td {
+        padding-bottom: 0.2em;
+    }
     input.credential {
-        padding: 0 0.4em;
+        padding: 0.3em 0.5em;
         width: 20em;
+        border 1px solid black;
     }
     tr {
         line-height: 1.2em;
         /*margin-bottom: 0.2em;*/
     }
+`
+const UpdateCredentials = styled(Button)`
+    padding: 0.3em 0.7em;
+`
+const Hotkeys = styled.span`
+    margin-right: 1em;
 `
 const HotKey = styled.code``
 const RecurseControl = styled.span`
@@ -151,13 +169,15 @@ const { ceil, floor, max, min } = Math
 
 function DirRow(
     { Prefix: key }: Dir,
-    { bucket, bucketUrlRoot, urlPrefix, duration, datetimeFmt, sizeFmt, credentials, }: {
+    { bucket, bucketUrlRoot, urlPrefix, duration, datetimeFmt, sizeFmt, credentials, endpoint, s3BucketEndpoint, }: {
         bucket: string,
         bucketUrlRoot: boolean,
         duration: Duration,
         datetimeFmt: DatetimeFmt,
         sizeFmt: SizeFmt,
         credentials?: CredentialsOptions,
+        endpoint?: string,
+        s3BucketEndpoint?: boolean,
         urlPrefix?: string,
     },
 ) {
@@ -167,6 +187,8 @@ function DirRow(
         bucket, key,
         ttl: duration,
         credentials,
+        endpoint,
+        s3BucketEndpoint,
     })
     const totalSize = fetcher.cache?.totalSize
     const mtime = fetcher.cache?.LastModified
@@ -201,6 +223,8 @@ function TableRow(
         datetimeFmt: DatetimeFmt,
         sizeFmt: SizeFmt,
         credentials?: CredentialsOptions,
+        endpoint?: string,
+        s3BucketEndpoint?: boolean,
     }
 ) {
     return (
@@ -248,7 +272,14 @@ const DefaultConfigs: S3IdxConfig = {
     paginationInfoInURL: true,
 }
 
-export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: string }) {
+export function S3Tree(
+    { bucket = '', pathPrefix, endpoint }: {
+        bucket: string
+        pathPrefix?: string
+        endpoint?: string
+    }
+) {
+    let s3BucketEndpoint = true  // TODO: remove
     const globalConfig = useRef((window as any).S3IDX_CONFIG)
     const config: S3IdxConfig = { ...DefaultConfigs, ...globalConfig.current }
 
@@ -269,7 +300,7 @@ export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: strin
     const handleRequestError = (err: any) => {
         console.log("Error!", err)
         if (err.code === 'NetworkingError') {
-            console.warn(`Handling CORS error (${err.statusCode})`)
+            console.warn(`Handling CORS error (statusCode: ${err.statusCode})`)
             setNeedsCors(true)
         } else if (err.statusCode == 403 || err.code == 'AccessDenied') {
             console.warn('Handling auth error')
@@ -287,15 +318,49 @@ export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: strin
     const [ sizeFmt, setSizeFmt ] = useSizeFmt<SizeFmt>(config.sizeFmt)
 
     const path = (params['*'] || '').replace(/\/$/, '').replace(/^\//, '')
-    const pathPieces = (prefix ? prefix.split('/') : []).concat(path ? path.split('/') : [])
+    const pathPieces = (pathPrefix ? pathPrefix.split('/') : []).concat(path ? path.split('/') : [])
     const keyPieces = bucket ? pathPieces : pathPieces.slice(1)
     const bucketUrlRoot = !bucket
     if (!bucket) {
         bucket = pathPieces[0]
+        if (endpoint) {
+            throw Error(`Endpoint ${endpoint} known before bucket ${bucket}`)
+        }
         console.log(`Inferred bucket ${bucket} from URL path ${path}`)
     }
+
+    const { host, hostname, } = window.location
+    const rgx = /((?<bucket>.*)\.)?s3(-website)?(\.(?<region>[^.]+))?\.amazonaws\.com$/
+    const groups = hostname.match(rgx)?.groups
+    const awsDomain = !!groups
+    if (awsDomain && !groups.bucket) {
+        // On non-bucket-specific s3.amazonaws.com subdomains, ensure no authentication info is stored
+        if (accessKeyId) setAccessKeyId(null)
+        if (secretAccessKey) setSecretAccessKey(null)
+    }
+    if (!endpoint) {
+        if (awsDomain) {
+            if (groups.bucket) {
+                if (groups.bucket !== bucket) {
+                    throw Error(`Bucket ${bucket} doesn't match ${groups.bucket} from hostname ${hostname}`)
+                }
+                endpoint = `https://${host}`
+            } else {
+                endpoint = `https://${host}/${bucket}`
+            }
+            s3BucketEndpoint = true
+        } else {
+            endpoint = `https://${bucket}.s3.amazonaws.com`
+            // endpoint = `https://s3.amazonaws.com/${bucket}`
+            s3BucketEndpoint = true
+        }
+        console.log(`Computed endpoint: ${endpoint} (${s3BucketEndpoint})`)
+    }
+
     const key = keyPieces.join('/')
-    console.log(`Render ${bucket}/${key}: params`, params, ` (prefix ${prefix})`)
+    console.log(`Render ${bucket}/${key}: params`, params, ` (prefix ${pathPrefix}), endpoint ${endpoint} (bucket endpoint? ${s3BucketEndpoint})`)
+
+    useEffect( () => { document.title = bucket }, [ bucket ])
 
     const [ rows, setRows ] = useState<Row[] | null>(null)
     const [ s3PageSize, setS3PageSize ] = useState(config.s3PageSize)
@@ -310,7 +375,7 @@ export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: strin
     // user-initiated cache purge
     const [ fetcherNonce, setFetcherNonce ] = useState({})
     const fetcher = useMemo(() => {
-        console.log(`Memo: fetcher; bucket ${bucket} (key ${key}), current rows:`, rows, `credentials? (${region}, ${!!credentials})`)
+        console.log(`Memo: fetcher; bucket ${bucket} (key ${key}), current rows:`, rows, `credentials? (${region}, ${!!credentials}), endpoint ${endpoint}`)
         return new S3Fetcher({
             bucket,
             region,
@@ -318,16 +383,18 @@ export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: strin
             pageSize: s3PageSize,
             ttl: duration,
             credentials,
+            s3BucketEndpoint,
+            endpoint,
             cacheCb: cache => {
                 console.log("CacheCb!", cache)
                 setMetadataNonce({})
             }
         })
-    }, [ fetcherNonce, bucket, key, region, accessKeyId, secretAccessKey, ])
+    }, [ fetcherNonce, bucket, key, region, accessKeyId, secretAccessKey, endpoint, s3BucketEndpoint, ])
 
     // Current-directory metadata
 
-    const metadata = fetcher.checkMetadata()
+    const metadata = useMemo(() => fetcher.checkMetadata(), [ fetcher, metadataNonce, ])
     let { numChildren: numChildren, totalSize, LastModified, } =
         metadata
             ? metadata
@@ -392,7 +459,7 @@ export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: strin
             if (e.key == 'u') {
                 if (keyPieces.length) {
                     const newKey = keyPieces.slice(0, keyPieces.length - 1).join('/')
-                    const url = bucketUrlRoot ? `/${bucket}/${newKey}` : (prefix ? `/${stripPrefix(prefix.split('/'), newKey)}` :`/${newKey}`)
+                    const url = bucketUrlRoot ? `/${bucket}/${newKey}` : (pathPrefix ? `/${stripPrefix(pathPrefix.split('/'), newKey)}` :`/${newKey}`)
                     console.log(`Navigating to ${url}`)
                     navigate(url)
                 }
@@ -442,9 +509,11 @@ export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: strin
     const inputAccessKey = useRef<HTMLInputElement | null>(null)
     const inputSecretKey = useRef<HTMLInputElement | null>(null)
 
+
+
     const credentialsEl = (
         <Credentials>
-            <table>
+            <table className="credentials">
                 <tbody>
                 <tr>
                     <td>Region:</td>
@@ -464,6 +533,7 @@ export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: strin
                         <input
                             className="credential"
                             type="text"
+                            disabled={awsDomain && !groups.bucket}
                             placeholder="Access key"
                             defaultValue={accessKeyId || ''}
                             ref={inputAccessKey}
@@ -476,83 +546,93 @@ export function S3Tree({ bucket = '', prefix }: { bucket: string, prefix?: strin
                         <input
                             className="credential"
                             type="password"
+                            disabled={awsDomain && !groups.bucket}
                             placeholder="Secret key"
-                            defaultValue=""
+                            defaultValue={secretAccessKey || ''}
                             ref={inputSecretKey}
                         />
                     </td>
                 </tr>
-                <tr>
-                    <td>
-                        <input type="button" value="Update" onClick={() => {
-                            const region = inputRegion.current?.value
-                            const accessKey = inputAccessKey.current?.value
-                            const secretKey = inputSecretKey.current?.value
-                            console.log("Credentials:", region , accessKey, secretKey ? '*'.repeat(secretKey.length) : undefined)
-                            setRegion(region)
-                            if (accessKey && secretKey) {
-                                setAccessKeyId(accessKey)
-                                setSecretAccessKey(secretKey)
-                                setNeedsAuth(false)
-                            } else if (accessKey || secretKey) {
-                                console.error('Set both access key and secret key, or neither')
-                            }
-                        }} />
-                    </td>
-                    <td></td>
-                </tr>
                 </tbody>
             </table>
+            <DivRow>
+                <UpdateCredentials onClick={() => {
+                    const region = inputRegion.current?.value
+                    const accessKey = inputAccessKey.current?.value
+                    const secretKey = inputSecretKey.current?.value
+                    console.log("Credentials:", region , accessKey, secretKey ? '*'.repeat(secretKey.length) : undefined)
+                    setRegion(region)
+                    if (accessKey) {
+                        setAccessKeyId(accessKey)
+                        setNeedsAuth(false)
+                    }
+                    if (secretKey) {
+                        setSecretAccessKey(secretKey)
+                        setNeedsAuth(false)
+                    }
+                }}>
+                    Update
+                </UpdateCredentials>
+            </DivRow>
         </Credentials>
     )
 
-    if (!rows) {
-        // TODO: possibly add region to URL (mirror `window.location`)?
-        const s3Url = `https://${bucket}.s3.amazonaws.com/index.html`
-        if (needsAuth) {
-            return (
-                <Container>
-                    <h3>Authentication error</h3>
-                    {credentialsEl}
-                </Container>
-            )
-        } else if (needsCors) {
-            return (
-                <Container>
-                    <h3>Network error (CORS?)</h3>
-                    {credentialsEl}
-                    <p>Bucket <code>{bucket}</code> may need CORS enabled.</p>
-                    <p>Mitigate by enabling CORS, or installing <code>index.html</code> directly on the bucket:</p>
-                    <h4>Enable CORS on bucket</h4>
-                    <p>Bash commands for enabling:</p>
-                    <CodeBlock>{`cat >cors.json <<EOF
+    const s3Url = `${endpoint}/index.html`
+    if (needsAuth) {
+        return (
+            <Container>
+                <h2>Authentication error</h2>
+                {credentialsEl}
+            </Container>
+        )
+    } else if (needsCors) {
+        return (
+            <Container>
+                <h2>Network error</h2>
+                <p>Seems like a CORS problem (check the Developer Tools for more details). You may need to either:</p>
+                <ul>
+                    <li>enable CORS on the bucket (see below), or</li>
+                    <li>specify the bucket's region, or an access/secret key pair</li>
+                </ul>
+                <p>If the info below doesn't help, feel free to <a href={issuesUrl}>file an issue</a> with info about
+                    what you're seeing (output from JavaScript Console will be useful to include).</p>
+                <h3 id={"credentials"}>Authentication</h3>
+                {credentialsEl}
+                <h3 id={"CORS"}>Enable CORS on bucket</h3>
+                <p>Bash commands for enabling:</p>
+                <CodeBlock>{`cat >cors.json <<EOF
 {
     "CORSRules": [{
         "AllowedHeaders": ["*"],
         "AllowedMethods": ["GET", "HEAD"],
-        "AllowedOrigins": ["*"],
+        "AllowedOrigins": ["${window.location.host}"],
         "ExposeHeaders": ["Accept-Ranges", "Content-Encoding"]
     }]
 }
 EOF
 aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.json)"
 `}
-                    </CodeBlock>
-                    <h4>Install <code>index.html</code> in bucket</h4>
-                    <p>You can also install this <code>index.html</code> in the bucket <code>{bucket}</code>, and visit it directly:</p>
-                    <CodeBlock>{`aws s3 cp s3://s3idx/index.html s3://${bucket}/index.html --content-type="text/html; charset=utf-8" --acl public-read`}</CodeBlock>
-                    <p>then visit <a href={s3Url}>{s3Url}</a></p>
-                </Container>
-            )
-        } else {
-            return (
-                <Container>
-                    <HeaderRow>
-                        Fetching {bucket}, page {pageIdx}…
-                    </HeaderRow>
-                </Container>
-            )
-        }
+                </CodeBlock>
+                {
+                    awsDomain ? null : <>
+                        <h4>Install <code>index.html</code> in bucket</h4>
+                        <p>You can also install this <code>index.html</code> in the bucket <code>{bucket}</code>, and visit it directly:</p>
+                        <CodeBlock>{`aws s3 cp s3://s3idx/index.html s3://${bucket}/index.html --content-type="text/html; charset=utf-8" --acl public-read`}</CodeBlock>
+                        <p>then visit <a href={s3Url}>{s3Url}</a></p>
+                    </>
+                }
+            </Container>
+        )
+    }
+
+    if (!rows) {
+        return (
+            <Container>
+                <HeaderRow>
+                    Fetching {bucket}, page {pageIdx}…
+                </HeaderRow>
+            </Container>
+        )
     }
 
     const ancestors =
@@ -603,7 +683,7 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
                     {
                         ancestors.map(({ key, name }) => {
                             const path = `${bucket}/${key}`
-                            const url = bucketUrlRoot ? `/${bucket}/${key}` : (prefix ? `/${stripPrefix(prefix.split('/'), key)}` :`/${key}`)
+                            const url = bucketUrlRoot ? `/${bucket}/${key}` : (pathPrefix ? `/${stripPrefix(pathPrefix.split('/'), key)}` :`/${key}`)
                             return <li key={path}>
                                 <Link to={url}>{name}</Link>
                             </li>
@@ -635,7 +715,7 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
                             {
                                 ancestors.map(({ key, name }) => {
                                     const path = `${bucket}/${key}`
-                                    const url = bucketUrlRoot ? `/${bucket}/${key}` : (prefix ? `/${stripPrefix(prefix.split('/'), key)}` :`/${key}`)
+                                    const url = bucketUrlRoot ? `/${bucket}/${key}` : (pathPrefix ? `/${stripPrefix(pathPrefix.split('/'), key)}` :`/${key}`)
                                     return <InlineBreadcrumb key={path}>
                                         <Link to={url}>{name}</Link>
                                     </InlineBreadcrumb>
@@ -657,11 +737,13 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
                                     bucket,
                                     prefix: keyPieces,
                                     bucketUrlRoot,
-                                    urlPrefix: prefix,
+                                    urlPrefix: pathPrefix,
                                     duration,
                                     datetimeFmt,
                                     sizeFmt,
                                     credentials,
+                                    endpoint,
+                                    s3BucketEndpoint,
                                 }
                             )
                         )
@@ -708,12 +790,12 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
                 </TtlControl>
             </PaginationRow>
             <FooterRow>
-                <span className="hotkeys">
+                <Hotkeys>
                     Hotkeys:
                     <HotKey>u</HotKey> (up),
                     <HotKey>&lt;</HotKey> (previous page),
                     <HotKey>&gt;</HotKey> (next page)
-                </span>
+                </Hotkeys>
                 <Button onClick={() => clearCache()}>Clear cache</Button>
                 <RecurseControl>
                     <label>
