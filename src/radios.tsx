@@ -19,7 +19,7 @@ export function Radios<T extends string>(
         const { label: text, data: name, disabled } =
             typeof option === 'string'
                 ? { label: option, data: option, disabled: false }
-                : option
+                : { ...option, ...{ label: option.label === undefined ? option.data : option.label } }
         return (
             <label key={name}>
                 <input

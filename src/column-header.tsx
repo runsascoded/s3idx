@@ -1,6 +1,6 @@
 import {Option, Radios} from "./radios";
-import React from "react";
-import {Tooltip} from "./tooltip";
+import React, {FC} from "react";
+import {PublicProps, Tooltip0, TooltipProps} from "./tooltip";
 import {stopPropagation} from "./utils";
 import styled from "styled-components";
 
@@ -16,11 +16,14 @@ export type HeaderSettings<T extends string> = {
 }
 
 export function ColumnHeader<T extends string>(
-    label: string,
-    headerSettings?: HeaderSettings<T>,
+    { label, headerSettings, Tooltip, }: {
+        label: string
+        headerSettings?: HeaderSettings<T>
+        Tooltip: FC<PublicProps>
+    }
 ) {
     return (
-        <Tooltip placement="bottom-start" title={
+        <Tooltip id={`column-${label}`} key={"column-header"} placement="bottom-start" title={
             <div className="settings-tooltip" onClick={stopPropagation}>
                 {
                     headerSettings

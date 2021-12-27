@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useMemo, useRef, useState,} from "react";
+import React, {ReactElement, useCallback, useEffect, useMemo, useRef, useState,} from "react";
 import moment, {Duration} from 'moment'
 import {Link, useNavigate, useParams} from "react-router-dom";
 import useEventListener from "@use-it/event-listener";
@@ -18,7 +18,8 @@ import {ColumnHeader, HeaderSettings} from "./column-header";
 import {stripPrefix} from "./utils";
 import {GithubIssuesLink, issuesUrl} from "./github-link";
 import {CredentialsOptions} from "aws-sdk/lib/credentials";
-import {Tooltip} from "./tooltip";
+import {makeTooltip,/*makeTooltip, */Props, Props0, PublicProps, Tooltip0, TooltipProps} from "./tooltip";
+import * as mui from "@mui/material";
 
 // Container / Row styles
 
@@ -58,7 +59,7 @@ const CodeBlock = styled.pre`
 const HeaderRow = styled(DivRow)`
     /* margin-bottom: 1rem; */
 `
-const Breadcrumb = styled(rb.Breadcrumb)`
+const Breadcrumbs = styled(rb.Breadcrumb)`
 li+li:before {
     padding: 0.2em;
     color: black;
@@ -372,7 +373,7 @@ export function S3Tree(
         if (endpoint) {
             throw Error(`Endpoint ${endpoint} known before bucket ${bucket}`)
         }
-        console.log(`Inferred bucket ${bucket} from URL path ${path}`)
+        // console.log(`Inferred bucket ${bucket} from URL path ${path}`)
     }
 
     const { host, hostname, } = window.location
@@ -395,11 +396,11 @@ export function S3Tree(
             // endpoint = `https://s3.amazonaws.com/${bucket}`
             s3BucketEndpoint = true
         }
-        console.log(`Computed endpoint: ${endpoint} (${s3BucketEndpoint})`)
+        // console.log(`Computed endpoint: ${endpoint} (${s3BucketEndpoint})`)
     }
 
     const key = keyPieces.join('/')
-    console.log(`Render ${bucket}/${key}: params`, params, ` (prefix ${pathPrefix}), endpoint ${endpoint} (bucket endpoint? ${s3BucketEndpoint})`)
+    // console.log(`Render ${bucket}/${key}: params`, params, ` (prefix ${pathPrefix}), endpoint ${endpoint} (bucket endpoint? ${s3BucketEndpoint})`)
 
     useEffect( () => { document.title = bucket }, [ bucket ])
 
@@ -467,7 +468,7 @@ export function S3Tree(
     // not computing child directories' sizes recursively)
     numChildren = numChildren === undefined ? fetcher?.cache?.numChildren : numChildren
     const timestamp = fetcher.cache?.timestamp
-    console.log("Metadata:", metadata, "cache:", fetcher.cache)
+    // console.log("Metadata:", metadata, "cache:", fetcher.cache)
 
     const [ paginationInfoInURL, setPaginationInfoInURL ] = usePaginationInfoInURL(config.paginationInfoInURL)
     const [ pageSize, setPageSize ] = paginationInfoInURL ?
@@ -511,14 +512,14 @@ export function S3Tree(
         },
         [ callSetPageIdx, ]
     )
-    console.log(`** Initializing, bucket ${bucket} key ${key}, page ${pageIdx}/${numPages} ⨉ ${pageSize}`)
+    // console.log(`** Initializing, bucket ${bucket} key ${key}, page ${pageIdx}/${numPages} ⨉ ${pageSize}`)
 
     const cantPrv = pageIdx == 0
     const cantNxt = numPages === undefined || pageIdx + 1 == numPages
 
     // Key events
 
-    const handler = useCallback(
+    const keypressHandler = useCallback(
         (e) => {
             if (e.key == 'u') {
                 if (keyPieces.length) {
@@ -539,7 +540,9 @@ export function S3Tree(
         },
         [ bucket, key, params, pageIdx, numPages, ]
     );
-    useEventListener("keypress", handler);
+    useEventListener("keypress", keypressHandler);
+
+    const Tooltip = makeTooltip()
 
     const start = pageSize * pageIdx
     const end = start + pageSize
@@ -573,8 +576,7 @@ export function S3Tree(
     const inputAccessKey = useRef<HTMLInputElement | null>(null)
     const inputSecretKey = useRef<HTMLInputElement | null>(null)
 
-
-
+    // TODO: factor component
     const credentialsEl = (
         <Credentials>
             <table className="credentials">
@@ -743,7 +745,7 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
         <ThemeProvider theme={theme}>
         <Container>
             <HeaderRow>
-                <Breadcrumb>
+                <Breadcrumbs>
                     {
                         ancestors.map(({ key, name }) => {
                             const path = `${bucket}/${key}`
@@ -753,12 +755,12 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
                             </li>
                         })
                     }
-                </Breadcrumb>
+                </Breadcrumbs>
                 <MetadataEl>
                     <span className="metadatum">{numChildren === undefined ? '?' : numChildren} children,{' '}</span>
                     <span className="metadatum">fetched {timestamp ? renderDatetime(timestamp, datetimeFmt) : '?'}</span>
                 </MetadataEl>
-                <GithubIssuesLink />
+                <GithubIssuesLink Tooltip={Tooltip} />
             </HeaderRow>
             <DivRow>
                 <FilesList>
@@ -766,10 +768,18 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
                     <tr>
                         <th key="name">Name</th>
                         <th key="size">
-                            {ColumnHeader('Size', sizeHeaderSettings)}
+                            {ColumnHeader({
+                                label: 'Size',
+                                headerSettings: sizeHeaderSettings,
+                                Tooltip,
+                            })}
                         </th>
                         <th key="mtime">
-                            {ColumnHeader('Modified', datetimeHeaderSettings)}
+                            {ColumnHeader({
+                                label:'Modified',
+                                headerSettings: datetimeHeaderSettings,
+                                Tooltip,
+                            })}
                         </th>
                     </tr>
                     </thead>
@@ -838,7 +848,7 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
                     </PageSizeSelect>
                 </PageNumber>
                 {' '}
-                <Tooltip placement={"bottom"} title={"Length of time to keep cached S3 info before purging/refreshing"}>
+                <Tooltip id={"cache-ttl"} placement={"bottom"} title={"Length of time to keep cached S3 info before purging/refreshing"}>
                     <TtlControl>
                         TTL:{' '}
                         <Ttl
@@ -854,10 +864,10 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
                         />
                     </TtlControl>
                 </Tooltip>
-                <Tooltip placement={"bottom"} title={"Clear/Refresh cache"}>
+                <Tooltip id={"refresh-cache"} placement={"bottom"} title={"Clear/Refresh cache"}>
                     <RefreshCacheButton onClick={() => clearCache()}>♻️</RefreshCacheButton>
                 </Tooltip>
-                <Tooltip placement={"bottom"} title={"Recursively fetch subdirectories, compute total sizes / mtimes"}>
+                <Tooltip id={"recurse"} placement={"bottom"} title={"Recursively fetch subdirectories, compute total sizes / mtimes"}>
                     <RecurseControl>
                         <label>
                             Recurse:
@@ -871,7 +881,7 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
                 </Tooltip>
             </PaginationRow>
             <FooterRow>
-                <Tooltip placement={"right"} title={
+                <Tooltip id={"hotkeys"} placement={"right"} title={
                     <Hotkeys>
                         <div className={"hotkeys-header"}>Hotkeys:</div>
                         <table className={"hotkeys-table"}>

@@ -1,7 +1,7 @@
-import React from "react"
+import React, {Dispatch, SetStateAction} from "react"
 import _ from "lodash";
 
-export type Setter<T> = React.Dispatch<React.SetStateAction<T>>
+export type Setter<T> = Dispatch<SetStateAction<T>>
 
 export const basename = function(path: string): string {
     const idx = path.lastIndexOf('/')
