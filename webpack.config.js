@@ -84,6 +84,9 @@ module.exports = {
       "styled-components": path.resolve(__dirname, "node_modules", "styled-components"),
     }
   },
+  optimization: {
+    usedExports: true,
+  },
   output: {
     filename: "bundle.js",
   },

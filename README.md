@@ -100,8 +100,8 @@ Only buckets that set appropriate CORS headers will be usable; others will show 
 ### S3 websites <a id="s3-websites"></a>
 `s3idx` should work from [S3 buckets configured to serve as static sites](https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteEndpoints.html), e.g. [`http://s3idx.s3-website-us-east-1.amazonaws.com/`](http://s3idx.s3-website-us-east-1.amazonaws.com/). However, I'm not sure there are any advantages to using it that way, as opposed to on the `s3.amazonaws.com` REST API subdomain (where your browser is happy to render it as `text/html`). 
 
-### `S3Fetcher`
-See [`src/s3fetcher.tsx`](./src/s3fetcher.tsx); each `S3Fetcher` handles interfacing with a specific "directory" (bucket or "prefix") on S3, fetching pages and maintaining a cache in `localStorage`, computing various summary statistics (number of children, total size, last modified time), and firing callbacks when they change.
+### `Fetcher`
+See [`src/fetcher.tsx`](src/s3/fetcher.tsx); each `Fetcher` handles interfacing with a specific "directory" (bucket or "prefix") on S3, fetching pages and maintaining a cache in `localStorage`, computing various summary statistics (number of children, total size, last modified time), and firing callbacks when they change.
 
 It's pretty messy and imperative; lots of room for improvement. In particular, a [SQL.js](https://sql.js.org/#/) backend is appealing, especially for desired table-sorting/searching functionality.
 
@@ -176,9 +176,23 @@ TODO: make these GitHub issues
 - [ ] allow switching buckets in non-AWS-hosted mode
 - [ ] hide pagination controls when < 1 page
 
+### UI
+- [ ] "Recurse" checkbox can wrap weirdly
+- [ ] GitHub link tooltip causes brief page stutter to the right
+- [ ] move `numChildren` down with pagination controls
+- [ ] add `numDescendants`
+- [ ] add "don't show again" to EDU tooltips
+- [ ] react-router redirect for auth/cors errors
+- [ ] bucket-switcher
+
+#### Mobile site
+- [ ] hide hotkeys
+- [ ] swipe to navigate pages
+- [ ] hamburger menu settings "☰"
+
 ### Global Configs
 - [ ] global configs in "⚙️" tooltip
-- [ ] configurable region/credentials
+- [ ] configurable region/credentials, "🔒"
 
 ### S3 API
 - [ ] look up buckets' region, CORS policy
@@ -187,10 +201,15 @@ TODO: make these GitHub issues
 - [ ] configurable S3 endpoint
 - [ ] support blob download
 - [ ] support click-to-copy paths to clipboard
+- [ ] configure default/max number of pages to fetch on initial load / subsequent loads
+
+### Deployment
+- [ ] audit/reduce bundle size; add tree-shaking
+- [ ] DEP0005 deprecation warning during `npm run build`
+- [ ] build prod/dev releases as different files under `dist/`
+- [ ] support mode with `<link/>`/`<script/>` tags, to reduce initial bundle size
 
 ### Misc
-- [ ] audit/reduce bundle size
 - [ ] treemap view
-- [ ] DEP0005 deprecation warning during `npm run build`
 - [ ] better/structured logging
 - [ ] source documentation

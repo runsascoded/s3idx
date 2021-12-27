@@ -107,7 +107,7 @@ export function parseDuration(ttl: string): moment.Duration | undefined {
     return d
 }
 
-export class S3Fetcher {
+export class Fetcher {
     bucket: string
     key?: string
     pageSize: number
@@ -223,16 +223,16 @@ export class S3Fetcher {
             this.cacheCb(this.cache)
     }
 
-    dirs(): S3Fetcher[] | undefined {
+    dirs(): Fetcher[] | undefined {
         const { bucket, cache, endpoint, s3BucketEndpoint, } = this
         if (cache) {
             const {pages, numChildren} = cache
             if (numChildren !== undefined) {
                 // console.log(`Cache: purging pages under ${bucket}/${key}`)
-                return ([] as S3Fetcher[]).concat(
+                return ([] as Fetcher[]).concat(
                     ...pages.map(Page).map(page =>
                         page.dirs.map(dir =>
-                            new S3Fetcher({ bucket, key: dir.Prefix, endpoint, s3BucketEndpoint, })
+                            new Fetcher({ bucket, key: dir.Prefix, endpoint, s3BucketEndpoint, })
                         )
                     )
                 )
@@ -267,7 +267,7 @@ export class S3Fetcher {
         const result = this.reduceSync<Metadata>(
             dir => {
                 const metadata =
-                    new S3Fetcher({ bucket, key: dir.Prefix, endpoint, s3BucketEndpoint, })
+                    new Fetcher({ bucket, key: dir.Prefix, endpoint, s3BucketEndpoint, })
                         .checkMetadata()
                 if (!metadata) return
                 const { totalSize, LastModified } = metadata
@@ -398,7 +398,7 @@ export class S3Fetcher {
         return (
             this.reduce<Metadata>(
                 dir =>
-                    new S3Fetcher({ bucket, key: dir.Prefix, endpoint, s3BucketEndpoint, }).computeMetadata().then(
+                    new Fetcher({ bucket, key: dir.Prefix, endpoint, s3BucketEndpoint, }).computeMetadata().then(
                         ({ totalSize, LastModified }) => {
                             return { numChildren: 1, totalSize, LastModified }
                         }

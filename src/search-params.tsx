@@ -1,7 +1,6 @@
 import {QueryParamConfig, useQueryParam} from "use-query-params";
-import _, {entries} from "lodash";
+import { entries, isEqual, } from "lodash";
 import {Location} from "react-router-dom";
-import {Object} from "aws-sdk/clients/s3";
 const { isArray } = Array
 
 export type HandleUnexpectedValue = 'Default' | 'Warn' | 'Throw'
@@ -80,7 +79,7 @@ export function enumMultiParam<D extends string>(
     }
 ): QueryParamConfig<D[]> {
     const defValue = defaultValue === undefined ? [] : defaultValue
-    const eq = _.isEqual
+    const eq = isEqual
     const delim = delimiter === undefined ? ',' : delimiter
     // entries = entries.map
     const d2s: { [k: string]: string } = obj(entries.map(([ d, s ]) => [ d as string, s, ]))

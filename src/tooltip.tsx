@@ -1,5 +1,6 @@
-import * as mui from "@mui/material";
-import {tooltipClasses} from "@mui/material";
+import * as mui from "@mui/material"
+import { tooltipClasses, } from "@mui/material/Tooltip"
+import { styled as muiStyled, } from "@mui/material/styles";
 import React, {FC, useCallback, useMemo, useState} from "react";
 import styled from "styled-components";
 import {Setter} from "./utils";
@@ -31,7 +32,7 @@ export const OuterTooltip = (props: OuterProps) => {
     return <InnerTooltip {...props} {...{ clicked, setClicked, }}/>
 }
 
-export const InnerTooltip = mui.styled(
+export const InnerTooltip = muiStyled(
     ({
          className, arrow, children, title,
          id, clickToPin, openTooltipId, handleOpen, handleClose,
@@ -87,7 +88,6 @@ export const InnerTooltip = mui.styled(
 
         return (
                 <mui.Tooltip
-                    key={"mui.Tooltip"}
                     onClick={handleTooltipClick}
                     onOpen={handleTooltipOpen}
                     onClose={handleTooltipClose}

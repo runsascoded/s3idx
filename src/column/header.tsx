@@ -1,7 +1,7 @@
-import {Option, Radios} from "./radios";
+import {Option, Radios} from "../control/radios";
 import React, {FC} from "react";
-import {CSS, Props} from "./tooltip";
-import {stopPropagation} from "./utils";
+import {CSS, Props} from "../tooltip";
+import {stopPropagation} from "../utils";
 import styled from "styled-components";
 
 export type HeaderSettings<T extends string> = {
@@ -32,7 +32,7 @@ const css: CSS = {
     },
 }
 
-export function ColumnHeader<T extends string>(
+export function Header<T extends string>(
     { label, headerSettings, Tooltip, }: {
         label: string
         headerSettings?: HeaderSettings<T>

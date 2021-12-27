@@ -2,19 +2,22 @@ import React, {useCallback, useEffect, useMemo, useRef, useState,} from "react";
 import moment, {Duration} from 'moment'
 import {Link, useNavigate, useParams} from "react-router-dom";
 import useEventListener from "@use-it/event-listener";
-import {Dir, File, parseDuration, Row, S3Fetcher} from "./s3fetcher";
-import * as sz from "./size";
-import {SizeFmt} from "./size";
+import {Dir, File, parseDuration, Row, Fetcher} from "./s3/fetcher";
+import {SizeFmt, renderSize as szRenderSize} from "./size";
 import {useQueryParam} from "use-query-params";
 import {intParam, stringParam} from "./search-params"
 import createPersistedState from "use-persisted-state";
 import styled, {css} from "styled-components"
-import * as rb from "react-bootstrap"
+import {
+    Breadcrumb as BootstrapBreadcrumb,
+    Container as BootstrapContainer,
+    Row as BootstrapRow,
+} from "react-bootstrap";
 import {ThemeProvider} from "@mui/material"
-import {Option} from "./radios";
+import {Option} from "./control/radios";
 import theme from "./theme";
 import {DatetimeFmt, renderDatetime} from "./datetime";
-import {ColumnHeader, HeaderSettings} from "./column-header";
+import {Header, HeaderSettings} from "./column/header";
 import {stripPrefix} from "./utils";
 import {GithubIssuesLink, issuesUrl} from "./github-link";
 import {CredentialsOptions} from "aws-sdk/lib/credentials";
@@ -22,7 +25,7 @@ import {center, makeTooltip} from "./tooltip";
 
 // Container / Row styles
 
-const Container = styled(rb.Container)`
+const Container = styled(BootstrapContainer)`
     margin-bottom: 2rem;
     code {
         font-size: 1em;
@@ -44,7 +47,7 @@ const Container = styled(rb.Container)`
 const RowStyle = css`
     padding 0 2rem;
 `
-const DivRow = styled(rb.Row)`
+const DivRow = styled(BootstrapRow)`
     ${RowStyle}
 `
 const CodeBlock = styled.pre`
@@ -58,7 +61,7 @@ const CodeBlock = styled.pre`
 const HeaderRow = styled(DivRow)`
     /* margin-bottom: 1rem; */
 `
-const Breadcrumbs = styled(rb.Breadcrumb)`
+const Breadcrumbs = styled(BootstrapBreadcrumb)`
 li+li:before {
     padding: 0.2em;
     color: black;
@@ -235,7 +238,7 @@ function DirRow(
 ) {
     const pieces = key.split('/')
     const name = pieces[pieces.length - 1]
-    const fetcher = new S3Fetcher({
+    const fetcher = new Fetcher({
         bucket, key,
         ttl: duration,
         credentials,
@@ -250,7 +253,7 @@ function DirRow(
             <Link to={url}>{name}</Link>
         </td>
         <td key="size">{renderSize(totalSize, sizeFmt)}</td>
-        <td key="mtime">{mtime ? renderDatetime(mtime, datetimeFmt) : ''}</td>
+        <td key="mtime">{mtime ? renderDatetime(mtime, datetimeFmt) : '?'}</td>
     </tr>
 }
 
@@ -302,7 +305,7 @@ function toPageIdxStr(idx: number) {
 
 function renderSize(size: number | undefined, fmt: SizeFmt) {
     return size !== undefined
-        ? sz.renderSize({ size, fmt, short: fmt === 'iec', })
+        ? szRenderSize({ size, fmt, short: fmt === 'iec', })
         : '?'
 }
 
@@ -440,7 +443,7 @@ export function S3Tree(
     const [ fetcherNonce, setFetcherNonce ] = useState({})
     const fetcher = useMemo(() => {
         console.log(`Memo: fetcher; bucket ${bucket} (key ${key}), current rows:`, rows, `credentials? (${region}, ${!!credentials}), endpoint ${endpoint}`)
-        return new S3Fetcher({
+        return new Fetcher({
             bucket,
             region,
             key,
@@ -766,14 +769,14 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
                     <tr>
                         <th key="name">Name</th>
                         <th key="size">
-                            {ColumnHeader({
+                            {Header({
                                 label: 'Size',
                                 headerSettings: sizeHeaderSettings,
                                 Tooltip,
                             })}
                         </th>
                         <th key="mtime">
-                            {ColumnHeader({
+                            {Header({
                                 label:'Modified',
                                 headerSettings: datetimeHeaderSettings,
                                 Tooltip,

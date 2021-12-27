@@ -39,7 +39,7 @@ const sizeSuffixer = {
     'bytes': (size: number): Size => { return { num: size } }
 }
 
-export const computeSize = (size: number, fmt: SizeFmt, short: boolean): Size => sizeSuffixer[fmt](size, short)
+//export const computeSize = (size: number, fmt: SizeFmt, short: boolean): Size => sizeSuffixer[fmt](size, short)
 
 export const renderSize = (
     { size, fmt, short, }: {
