@@ -3,7 +3,8 @@ import moment, {Duration} from 'moment'
 import {Link, useNavigate, useParams} from "react-router-dom";
 import useEventListener from "@use-it/event-listener";
 import {Dir, File, parseDuration, Row, S3Fetcher} from "./s3fetcher";
-import {renderSize, SizeFmt} from "./size";
+import * as sz from "./size";
+import {SizeFmt} from "./size";
 import {useQueryParam} from "use-query-params";
 import {intParam, stringParam} from "./search-params"
 import createPersistedState from "use-persisted-state";
@@ -17,6 +18,9 @@ import {ColumnHeader, HeaderSettings} from "./column-header";
 import {stripPrefix} from "./utils";
 import {GithubIssuesLink, issuesUrl} from "./github-link";
 import {CredentialsOptions} from "aws-sdk/lib/credentials";
+import {Tooltip} from "./tooltip";
+
+// Container / Row styles
 
 const Container = styled(rb.Container)`
     margin-bottom: 2rem;
@@ -43,6 +47,14 @@ const RowStyle = css`
 const DivRow = styled(rb.Row)`
     ${RowStyle}
 `
+const CodeBlock = styled.pre`
+    margin-left: 2em;
+    background: #f8f8f8;
+    padding: 0.6em 1.1em;
+`
+
+// Top / Metadata row
+
 const HeaderRow = styled(DivRow)`
     /* margin-bottom: 1rem; */
 `
@@ -53,33 +65,12 @@ li+li:before {
     content: "/";
 }
 `
-const CodeBlock = styled.pre`
-    margin-left: 2em;
-    background: #f8f8f8;
-    padding: 0.6em 1.1em;
-`
-const PaginationRow = styled(DivRow)`
-    margin-top: 1rem;
-    line-height: 1.2rem;
-`
-const Button = styled.button`
-    font-size: 1em;
-    padding: 0 0.5em;
-    border: 1px solid #bbb;
-    cursor: pointer;
-    box-sizing: border-box;
-`
-const PaginationButton = styled(Button)`
-    margin-left: 0rem;
-    margin-right: 0.5rem;
-`
-const FooterRow = styled(DivRow)`
-    margin-top: 1rem;
-`
 const MetadataEl = styled.span`
     margin-top: .75rem;
     margin-left: 1rem;
 `
+
+// Files table
 
 const FilesList = styled.table`
     tr {
@@ -93,6 +84,9 @@ const FilesList = styled.table`
         font-family: monospace;
     }
 `
+
+// First table row ("total")
+
 const TotalRow = styled.tr`
     /*border-top: 1px solid grey;*/
     /*border-bottom: 1px solid grey;*/
@@ -112,23 +106,92 @@ const InlineBreadcrumbs = styled.span`
     }
 `
 const InlineBreadcrumb = styled.span``
-const GotoPage = styled.input`
-    width: 2.6rem;
-    text-align: right;
-`
-const Ttl = styled.input`
-    width: 2.9rem;
-    text-align: right;
-    padding-right: 0.3rem;
-`
-const TtlControl = styled.span`
-    margin-left: 0.5rem;
-`
 
+
+// Pagination / Cache controls
+
+const PaginationRow = styled(DivRow)`
+    margin-top: 1rem;
+    line-height: 1.2rem;
+    font-size: 1.1em;
+`
+const Button = styled.button`
+    font-size: 1.1em;
+    padding: 0.3em 0.7em;
+    border: 1px solid #bbb;
+    cursor: pointer;
+    box-sizing: border-box;
+`
+const PaginationButton = styled(Button)`
+    margin-left: 0rem;
+    margin-right: 0.2rem;
+`
 const PageNumber = styled.span`
     margin-left: 0.5rem;
     margin-right: 0.5rem;
 `
+const GotoPage = styled.input`
+    width: 2.6rem;
+    text-align: right;
+    padding: 0.3em;
+`
+const PageSizeSelect = styled.select`
+    padding: 0.2em;
+`
+const Ttl = styled.input`
+    width: 2.9em;
+    text-align: right;
+    padding: 0.3em;
+    padding-right: 0.3em;
+`
+const TtlControl = styled.span`
+    margin-left: 0.5em;
+`
+const RefreshCacheButton = styled(Button)`
+    margin-left: 0.3em;
+    font-size: 1.3em;
+    padding: 0.2em 0.4em;
+`
+const RecurseControl = styled.span`
+    margin-left: 0.5rem;
+    margin-top: auto;
+    margin-bottom: auto;
+    label {
+        margin-bottom: 0;
+    }
+`
+const Recurse = styled.input`
+    margin-left: 0.3rem;
+    vertical-align: middle;
+`
+
+// Footer / hotkey row
+
+const FooterRow = styled(DivRow)`
+    margin-top: 1rem;
+`
+const Hotkeys = styled.div`
+    display: inline-block;
+    padding: 0.5em;
+    /*margin-right: 1em;*/
+    .hotkeys-header {
+        font-weight: bold;
+    }
+    .hotkeys-table td:first-child {
+        padding-right: 0.5em;
+    }
+`
+const HotKey = styled.code`
+    font-size: 1.2em;
+`
+const HotkeysLabel = styled.span`
+    font-size: 1.3em;
+    cursor: pointer;
+    user-select: none;
+`
+
+// Credentials
+
 const Credentials = styled.div`
     table.credentials {
         margin-bottom: 0.5em;
@@ -152,17 +215,6 @@ const Credentials = styled.div`
 `
 const UpdateCredentials = styled(Button)`
     padding: 0.3em 0.7em;
-`
-const Hotkeys = styled.span`
-    margin-right: 1em;
-`
-const HotKey = styled.code``
-const RecurseControl = styled.span`
-    margin-left: 0.5rem;
-`
-const Recurse = styled.input`
-    margin-left: 0.3rem;
-    vertical-align: middle;
 `
 
 const { ceil, floor, max, min } = Math
@@ -197,7 +249,7 @@ function DirRow(
         <td key="name">
             <Link to={url}>{name}</Link>
         </td>
-        <td key="size">{totalSize ? renderSize(totalSize, sizeFmt) : ''}</td>
+        <td key="size">{renderSize(totalSize, sizeFmt)}</td>
         <td key="mtime">{mtime ? renderDatetime(mtime, datetimeFmt) : ''}</td>
     </tr>
 }
@@ -241,14 +293,17 @@ const useTtl = createPersistedState('ttl')
 const useEagerMetadata = createPersistedState('eagerMetadata')
 const useDatetimeFmt = createPersistedState('datetimeFmt')
 const useSizeFmt = createPersistedState('sizeFmt')
-const useRegion = createPersistedState('region')
-const useAccessKeyId = createPersistedState('accessKeyId')
-const useSecretAccessKey = createPersistedState('secretAccessKey')
 
 const h10 = moment.duration(10, 'h')
 
 function toPageIdxStr(idx: number) {
     return (idx >= 0 ? (idx + 1) : idx).toString()
+}
+
+function renderSize(size: number | undefined, fmt: SizeFmt) {
+    return size !== undefined
+        ? sz.renderSize({ size, fmt, short: fmt === 'iec', })
+        : '?'
 }
 
 type S3IdxConfig = {
@@ -282,15 +337,6 @@ export function S3Tree(
     let s3BucketEndpoint = true  // TODO: remove
     const globalConfig = useRef((window as any).S3IDX_CONFIG)
     const config: S3IdxConfig = { ...DefaultConfigs, ...globalConfig.current }
-
-    // Credentials
-
-    const [ accessKeyId, setAccessKeyId ] = useAccessKeyId<string | null>(null)
-    const [ secretAccessKey, setSecretAccessKey ] = useSecretAccessKey<string | null>(null)
-    const credentials =
-        accessKeyId && secretAccessKey
-            ? { accessKeyId, secretAccessKey }
-            : undefined
 
     // CORS error handling
 
@@ -333,11 +379,6 @@ export function S3Tree(
     const rgx = /((?<bucket>.*)\.)?s3(-website)?(\.(?<region>[^.]+))?\.amazonaws\.com$/
     const groups = hostname.match(rgx)?.groups
     const awsDomain = !!groups
-    if (awsDomain && !groups.bucket) {
-        // On non-bucket-specific s3.amazonaws.com subdomains, ensure no authentication info is stored
-        if (accessKeyId) setAccessKeyId(null)
-        if (secretAccessKey) setSecretAccessKey(null)
-    }
     if (!endpoint) {
         if (awsDomain) {
             if (groups.bucket) {
@@ -362,11 +403,34 @@ export function S3Tree(
 
     useEffect( () => { document.title = bucket }, [ bucket ])
 
-    const [ rows, setRows ] = useState<Row[] | null>(null)
-    const [ s3PageSize, setS3PageSize ] = useState(config.s3PageSize)
+    function createBucketState(key: string) {
+        return createPersistedState(JSON.stringify({ bucket, s3idx: key }))
+    }
+    function useBucketState<T>(key: string, defaultValue: T) {
+        const useState = createBucketState(key)
+        return useState<T>(defaultValue)
+    }
 
-    const [region, setRegion] = useRegion(config.region)
-    const [ ttl, setTtl ] = useTtl<string>(config.ttl)
+    const [ rows, setRows ] = useState<Row[] | null>(null)
+    const [ s3PageSize, setS3PageSize ] = useState(config.s3PageSize)  // TODO
+
+    // Credentials
+
+    const [ region, setRegion, ] = useBucketState('region', config.region)
+    const [ accessKeyId, setAccessKeyId ] = useBucketState<string | null>('accessKeyId', null)
+    const [ secretAccessKey, setSecretAccessKey ] = useBucketState<string | null>('secretAccessKey', null)
+    const credentials =
+        accessKeyId && secretAccessKey
+            ? { accessKeyId, secretAccessKey }
+            : undefined
+
+    if (awsDomain && !groups.bucket) {
+        // On non-bucket-specific s3.amazonaws.com subdomains, ensure no authentication info is stored
+        if (accessKeyId) setAccessKeyId(null)
+        if (secretAccessKey) setSecretAccessKey(null)
+    }
+
+    const [ ttl, setTtl ] = useBucketState('ttl', config.ttl)
     const duration = parseDuration(ttl) || h10
 
     const [ metadataNonce, setMetadataNonce ] = useState({})
@@ -722,7 +786,7 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
                                 })
                             }
                         </InlineBreadcrumbs></td>
-                        <td key="size">{totalSize !== undefined ? renderSize(totalSize, sizeFmt) : '?'}</td>
+                        <td key="size">{renderSize(totalSize, sizeFmt)}</td>
                         <td key="mtime">{
                             LastModified
                                 ? renderDatetime(LastModified, datetimeFmt)
@@ -764,49 +828,63 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
                         onChange={e => setPageIdxStr(e.target.value || '')}
                     />{' '}
                     <span>of {numPages === null ? '?' : numPages}</span>{' ⨉ '}
-                    <select
+                    <PageSizeSelect
                         value={pageSize}
                         onChange={e => setPageSize(Number(e.target.value))}
                     >
                         {[10, 20, 50, 100].map(pageSize =>
                             <option key={pageSize} value={pageSize}>{pageSize}</option>
                         )}
-                    </select>
+                    </PageSizeSelect>
                 </PageNumber>
                 {' '}
-                <TtlControl>
-                    TTL:{' '}
-                    <Ttl
-                        type="text"
-                        defaultValue={ttl}
-                        onChange={e => {
-                            const ttl = e.target.value
-                            const d = parseDuration(ttl)
-                            if (d) {
-                                setTtl(ttl)
-                            }
-                        }}
-                    />
-                </TtlControl>
+                <Tooltip placement={"bottom"} title={"Length of time to keep cached S3 info before purging/refreshing"}>
+                    <TtlControl>
+                        TTL:{' '}
+                        <Ttl
+                            type="text"
+                            defaultValue={ttl}
+                            onChange={e => {
+                                const ttl = e.target.value
+                                const d = parseDuration(ttl)
+                                if (d) {
+                                    setTtl(ttl)
+                                }
+                            }}
+                        />
+                    </TtlControl>
+                </Tooltip>
+                <Tooltip placement={"bottom"} title={"Clear/Refresh cache"}>
+                    <RefreshCacheButton onClick={() => clearCache()}>♻️</RefreshCacheButton>
+                </Tooltip>
+                <Tooltip placement={"bottom"} title={"Recursively fetch subdirectories, compute total sizes / mtimes"}>
+                    <RecurseControl>
+                        <label>
+                            Recurse:
+                            <Recurse
+                                type="checkbox"
+                                checked={eagerMetadata}
+                                onChange={e => setEagerMetadata(e.target.checked)}
+                            />
+                        </label>
+                    </RecurseControl>
+                </Tooltip>
             </PaginationRow>
             <FooterRow>
-                <Hotkeys>
-                    Hotkeys:
-                    <HotKey>u</HotKey> (up),
-                    <HotKey>&lt;</HotKey> (previous page),
-                    <HotKey>&gt;</HotKey> (next page)
-                </Hotkeys>
-                <Button onClick={() => clearCache()}>Clear cache</Button>
-                <RecurseControl>
-                    <label>
-                        Recurse:
-                        <Recurse
-                            type="checkbox"
-                            checked={eagerMetadata}
-                            onChange={(e) => setEagerMetadata(e.target.checked)}
-                        />
-                    </label>
-                </RecurseControl>
+                <Tooltip placement={"right"} title={
+                    <Hotkeys>
+                        <div className={"hotkeys-header"}>Hotkeys:</div>
+                        <table className={"hotkeys-table"}>
+                            <tbody>
+                            <tr><td><HotKey>u</HotKey></td><td>up (parent folder)</td></tr>
+                            <tr><td><HotKey>&lt;</HotKey></td><td>previous page</td></tr>
+                            <tr><td><HotKey>&gt;</HotKey></td><td>next page</td></tr>
+                            </tbody>
+                        </table>
+                    </Hotkeys>
+                }>
+                    <HotkeysLabel>⌨❔️❓ℹ</HotkeysLabel>
+                </Tooltip>
             </FooterRow>
         </Container>
         </ThemeProvider>

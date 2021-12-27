@@ -12,10 +12,10 @@ moment.updateLocale('en', {
         hh: '%dh',
         d:  '%dd',
         dd: '%dd',
-        M:  '%dM',
-        MM: '%dM',
-        y:  '%dY',
-        yy: '%dY'
+        M:  '%dmo',
+        MM: '%dmo',
+        y:  '%dy',
+        yy: '%dy'
     }
 });
 

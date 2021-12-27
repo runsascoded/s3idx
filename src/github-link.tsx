@@ -1,5 +1,6 @@
 import styled from "styled-components";
 import React from "react";
+import { Tooltip } from "./tooltip";
 
 export const repoUrl = "https://github.com/runsascoded/s3idx"
 export const issuesUrl = `${repoUrl}/issues`
@@ -12,7 +13,11 @@ export const GithubLink = styled.a`
 `
 
 export function GithubIssuesLink() {
-    return <GithubLink href={issuesUrl}>
-        <img src={`data:image/png;base64,${githubLogo}`}/>
-    </GithubLink>
+    return (
+        <Tooltip arrow placement="right-start" title="See this project's open issues on GitHub">
+            <GithubLink href={issuesUrl}>
+                <img src={`data:image/png;base64,${githubLogo}`}/>
+            </GithubLink>
+        </Tooltip>
+    )
 }
