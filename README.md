@@ -162,7 +162,6 @@ TODO: make these GitHub issues
 - [ ] alternative cache in `sql.js`
 - [ ] propagate cache evictions up the directory tree
 - [ ] display remaining TTL for objects/pages
-- [ ] "Clear Cache" button → "🗑" / "♻️"
 - [ ] toggle auto-eviction vs. UI warning/highlighting stale info
 - [ ] file sizes not re-rendered as cleared after cache clear
 
@@ -174,13 +173,10 @@ TODO: make these GitHub issues
 - [ ] add toggling for pagination params in URL
 - [ ] allow switching buckets in non-AWS-hosted mode
 - [ ] hide pagination controls when < 1 page
-- [ ] single-letter mode for IEC sizes
 
 ### Global Configs
 - [ ] global configs in "⚙️" tooltip
-- [ ] hotkey edu in "⌨️" tooltip
 - [ ] configurable region/credentials
-- [ ] region/credentials per bucket
 
 ### S3 API
 - [ ] look up buckets' region, CORS policy
