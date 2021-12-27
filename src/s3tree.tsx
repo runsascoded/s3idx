@@ -135,7 +135,7 @@ const PageNumber = styled.span`
 const GotoPage = styled.input`
     width: 2.6em;
     text-align: right;
-    padding: 0.3em 0em;
+    padding: 0.2em 0;
     border: 0;
 `
 const PageSizeSelect = styled.select`
@@ -867,31 +867,33 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
                                 <PaginationButton onClick={() => setPageIdxStr(toPageIdxStr(pageIdx + 1))} disabled={cantNxt}>{'>'}</PaginationButton>{' '}
                                 <PaginationButton onClick={() => setPageIdxStr(toPageIdxStr((numPages || 0) - 1))} disabled={cantNxt}>{'>>'}</PaginationButton>{' '}
                             </span>
-                            <PageNumber>
-                                Page
-                                <GotoPage
-                                    type="number"
-                                    value={pageIdxStr}
-                                    onChange={e => setPageIdxStr(e.target.value || '')}
-                                />
-                                <span>of {numPages === null ? '?' : numPages}</span>{' ⨉'}
-                                <PageSizeSelect
-                                    value={pageSize}
-                                    onChange={e => setPageSize(Number(e.target.value))}
-                                >
-                                    {[10, 20, 50, 100].map(pageSize =>
-                                        <option key={pageSize} value={pageSize}>{pageSize}</option>
-                                    )}
-                                </PageSizeSelect>
-                            </PageNumber>
                         </span>
                     )
                 }
+                <PageNumber>
+                    Page
+                    <GotoPage
+                        type="number"
+                        value={pageIdxStr}
+                        onChange={e => setPageIdxStr(e.target.value || '')}
+                    />
+                    <span>of {numPages === null ? '?' : numPages}</span>{' ⨉'}
+                    <PageSizeSelect
+                        value={pageSize}
+                        onChange={e => setPageSize(Number(e.target.value))}
+                    >
+                        {[10, 20, 50, 100].map(pageSize =>
+                                <option key={pageSize} value={pageSize}>{pageSize}</option>
+                        )}
+                    </PageSizeSelect>
+                </PageNumber>
                 {
-                    numChildren !== null
-                    && <NumChildrenContainer>
-                        { numPages !== 1 && <>,{' '}</> }
-                        <NumChildren>{ numPages !== 1 ?'c':'C'}hildren {start + 1} – {start + rows.length} of {numChildren}</NumChildren>
+                    numChildren !== null &&
+                    <NumChildrenContainer>
+                        {' '}<span className={"control-separator"}>|</span>{' '}
+                        <NumChildren>
+                            Children {start + 1} – {start + rows.length} of {numChildren}
+                        </NumChildren>
                     </NumChildrenContainer>
                 }
             </PaginationRow>
