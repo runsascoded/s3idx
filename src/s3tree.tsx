@@ -18,7 +18,7 @@ import {ColumnHeader, HeaderSettings} from "./column-header";
 import {stripPrefix} from "./utils";
 import {GithubIssuesLink, issuesUrl} from "./github-link";
 import {CredentialsOptions} from "aws-sdk/lib/credentials";
-import {makeTooltip} from "./tooltip";
+import {center, makeTooltip} from "./tooltip";
 
 // Container / Row styles
 
@@ -167,9 +167,7 @@ const Recurse = styled.input`
 
 // Footer / hotkey row
 
-const FooterRow = styled(DivRow)`
-    margin-top: 1rem;
-`
+const FooterRow = styled(DivRow)``
 const Hotkeys = styled.div`
     display: inline-block;
     padding: 0.5em;
@@ -185,9 +183,11 @@ const HotKey = styled.code`
     font-size: 1.2em;
 `
 const HotkeysLabel = styled.span`
-    font-size: 1.3em;
+    font-size: 2.5em;
     cursor: pointer;
     user-select: none;
+    padding: 0;
+    margin: 0;
 `
 
 // Credentials
@@ -759,7 +759,6 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
                     <span className="metadatum">{numChildren === undefined ? '?' : numChildren} children,{' '}</span>
                     <span className="metadatum">fetched {timestamp ? renderDatetime(timestamp, datetimeFmt) : '?'}</span>
                 </MetadataEl>
-                <GithubIssuesLink Tooltip={Tooltip} />
             </HeaderRow>
             <DivRow>
                 <FilesList>
@@ -847,7 +846,7 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
                     </PageSizeSelect>
                 </PageNumber>
                 {' '}
-                <Tooltip id={"cache-ttl"} placement={"bottom"} title={"Length of time to keep cached S3 info before purging/refreshing"}>
+                <Tooltip id={"cache-ttl"} css={center} placement={"bottom"} title={"Length of time to keep cached S3 info before purging/refreshing"}>
                     <TtlControl>
                         TTL:{' '}
                         <Ttl
@@ -866,7 +865,9 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
                 <Tooltip id={"refresh-cache"} placement={"bottom"} title={"Clear/Refresh cache"}>
                     <RefreshCacheButton onClick={() => clearCache()}>♻️</RefreshCacheButton>
                 </Tooltip>
-                <Tooltip id={"recurse"} placement={"bottom"} title={"Recursively fetch subdirectories, compute total sizes / mtimes"}>
+                <Tooltip id={"recurse"} css={center} placement={"bottom"} title={
+                    <span>Recursively fetch subdirectories, compute total sizes / mtimes</span>
+                }>
                     <RecurseControl>
                         <label>
                             Recurse:
@@ -880,6 +881,7 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
                 </Tooltip>
             </PaginationRow>
             <FooterRow>
+                <GithubIssuesLink Tooltip={Tooltip} />
                 <Tooltip id={"hotkeys"} placement={"right"} title={
                     <Hotkeys>
                         <div className={"hotkeys-header"}>Hotkeys:</div>
@@ -892,7 +894,7 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
                         </table>
                     </Hotkeys>
                 }>
-                    <HotkeysLabel>⌨❔️❓ℹ</HotkeysLabel>
+                    <HotkeysLabel>⌨</HotkeysLabel>
                 </Tooltip>
             </FooterRow>
         </Container>

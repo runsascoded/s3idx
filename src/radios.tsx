@@ -1,10 +1,23 @@
 import React, {ReactNode} from "react";
+import styled from "styled-components";
 
 export type Option<T> = {
     label?: string | ReactNode
     data: T
     disabled?: boolean
 }
+
+const Div = styled.div`
+    padding: 0.3em 0.5em;
+    .radios-header: {
+        font-weight: 'bold';
+        margin-bottom: '0.4em';
+    }
+    .radio-options > label: {
+        display: 'block';
+        margin-bottom: 0;
+    }
+`
 
 export function Radios<T extends string>(
     { label, options, choice, cb, children }: {
@@ -35,9 +48,9 @@ export function Radios<T extends string>(
             </label>
         )
     })
-    return <div className="control col">
-        <div className="control-header">{label}:</div>
-        <div id={label} className="sub-control" onChange={(e: any) => cb(e.target.value)}>{labels}</div>
+    return <Div className={"radios"}>
+        <div className="radios-header">{label}:</div>
+        <div id={label} className="radio-options" onChange={(e: any) => cb(e.target.value)}>{labels}</div>
         {children}
-    </div>
+    </Div>
 }

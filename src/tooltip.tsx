@@ -4,6 +4,7 @@ import React, {FC, useCallback, useMemo, useState} from "react";
 import styled from "styled-components";
 import {Setter} from "./utils";
 import useEventListener from "@use-it/event-listener";
+import {entries} from "lodash";
 
 export type MakeTooltipProps = {
     openTooltipId: string | null
@@ -16,7 +17,8 @@ export type LiftedState = {
     clicked: boolean
     setClicked: Setter<boolean>
 }
-export type Props = mui.TooltipProps & { id: string }
+export type CSS = { [k: string]: { [k: string]: string | number | undefined } }
+export type Props = mui.TooltipProps & { id: string, css?: CSS }
 export type OuterProps = Props & MakeTooltipProps
 export type InnerProps = OuterProps & LiftedState
 
@@ -100,32 +102,33 @@ export const InnerTooltip = mui.styled(
                 </mui.Tooltip>
         )
 })(
-    ({ theme, clicked }) => ({
-        // Accessing `clicked` here (since it is a prop of `InnerTooltip`) is the reason for the existence of
-        // `OuterTooltip`, which declares `clicked` as state and makes it a prop of `InnerTooltip`. Normally `clicked`
-        // would be state on `InnerTooltip`.
-        [`& .${tooltipClasses.tooltip}`]: {
-            backgroundColor: theme.palette.common.black,
-            color: theme.palette.common.white,
-            fontSize: '1em',
-            padding: clicked ? '0.2em' : '0.4em',
-            border: clicked ? '0.2em solid orange' : undefined,
-        },
-        [`& .${tooltipClasses.arrow}`]: {
-            color: theme.palette.common.black,
-        },
-        '.settings-tooltip': {
-            margin: '0.3rem 0',
-        },
-        '.control-header': {
-            fontWeight: 'bold',
-            marginBottom: '0.4rem',
-        },
-        '.sub-control > label': {
-            display: 'block',
-            marginBottom: 0,
+    ({ theme, clicked, css, }) => {
+        let baseStyle: CSS = {
+            // Accessing `clicked` here (since it is a prop of `InnerTooltip`) is the reason for the existence of
+            // `OuterTooltip`, which declares `clicked` as state and makes it a prop of `InnerTooltip`. Normally `clicked`
+            // would be state on `InnerTooltip`.
+            [`& .${tooltipClasses.tooltip}`]: {
+                backgroundColor: theme.palette.common.black,
+                color: theme.palette.common.white,
+                fontSize: '1rem',
+                padding: clicked ? '0.2rem' : '0.4rem',
+                border: clicked ? '0.2rem solid orange' : undefined,
+            },
+            [`& .${tooltipClasses.arrow}`]: {
+                color: theme.palette.common.black,
+            },
         }
-    })
+        entries(css).forEach(([ k, v, ]) => {
+            if (k in baseStyle) {
+                entries(v).forEach(([ k2, v2 ]) => {
+                    baseStyle[k][k2] = v2
+                })
+            } else {
+                baseStyle[k] = v
+            }
+        })
+        return baseStyle
+    }
 );
 
 export function makeTooltip(): FC<Props> {
@@ -171,3 +174,5 @@ export function makeTooltip(): FC<Props> {
     )
     return Tooltip
 }
+
+export const center = {'&': { textAlign: 'center' }}

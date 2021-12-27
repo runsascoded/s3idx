@@ -1,18 +1,35 @@
 import {Option, Radios} from "./radios";
 import React, {FC} from "react";
-import {Props} from "./tooltip";
+import {CSS, Props} from "./tooltip";
 import {stopPropagation} from "./utils";
 import styled from "styled-components";
+
+export type HeaderSettings<T extends string> = {
+    options: (Option<T> | T)[]
+    choice: T
+    cb: (choice: T) => void
+}
 
 const SettingsIcon = styled.span`
     margin-right: 0.3rem;
     user-select: none;
 `
 
-export type HeaderSettings<T extends string> = {
-    options: (Option<T> | T)[]
-    choice: T
-    cb: (choice: T) => void
+const css: CSS = {
+    '.radios': {
+        padding: '0.3rem 0.5rem',
+    },
+    '.radios-header': {
+        fontWeight: 'bold',
+        marginBottom: '0.4rem',
+    },
+    '.radio-options > label': {
+        display: 'block',
+        marginBottom: 0,
+    },
+    'input[type=radio]': {
+        margin: 'auto 0.3rem auto 0',
+    },
 }
 
 export function ColumnHeader<T extends string>(
@@ -23,16 +40,14 @@ export function ColumnHeader<T extends string>(
     }
 ) {
     return (
-        <Tooltip id={`column-${label}`} placement="bottom-start" title={
-            <div className="settings-tooltip" onClick={stopPropagation}>
-                {
-                    headerSettings
-                        ? <Radios label={label} {...headerSettings} />
-                        : <div>no choices available</div>
-                }
-            </div>
+        <Tooltip id={`column-${label}`} css={css} placement="bottom-start" title={
+            <div className={"settings-tooltip"} onClick={stopPropagation}>{
+                headerSettings
+                    ? <Radios label={label} {...headerSettings} />
+                    : <div>no choices available</div>
+            }</div>
         }>
-            <span className="header-span">
+            <span className={"header-span"}>
                 <SettingsIcon>⚙️</SettingsIcon>
                 {label}
             </span>
