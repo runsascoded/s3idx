@@ -117,22 +117,20 @@ const InlineBreadcrumb = styled.span``
 const PaginationRow = styled(DivRow)`
     margin-top: 1em;
     line-height: 1.2em;
-    /*font-size: 1.1em;*/
 `
 const Button = styled.button`
-    font-size: 1.1em;
-    padding: 0.3em 0.7em;
+    padding: 0.2em 0.4em;
     border: 1px solid #bbb;
     cursor: pointer;
     box-sizing: border-box;
 `
 const PaginationButton = styled(Button)`
-    margin-left: 0rem;
-    margin-right: 0.2rem;
+    margin-left: 0em;
+    margin-right: 0.2em;
 `
 const PageNumber = styled.span`
-    margin-left: 0.5rem;
-    margin-right: 0.5rem;
+    margin-left: 0.5em;
+    margin-right: 0.5em;
 `
 const GotoPage = styled.input`
     width: 2.6em;
@@ -144,37 +142,49 @@ const PageSizeSelect = styled.select`
     padding: 0.2em 0.1em;
     border: 0;
 `
+const NumChildrenContainer = styled.span`
+    margin-top: auto;
+    margin-bottom: auto;
+`
+const NumChildren = styled.span``
 
 // Cache/TTL row
 
 const CacheRow = styled(DivRow)`
     margin-top: 1rem;
 `
-const Ttl = styled.input`
-    width: 2.9em;
-    text-align: right;
-    padding: 0.3em;
-    padding-right: 0.3em;
-`
-const TtlControl = styled.span`
-    margin-left: 0.5em;
-`
-const RefreshCacheButton = styled(Button)`
-    margin-left: 0.3em;
-    font-size: 1.3em;
-    padding: 0.2em 0.4em;
-`
-const RecurseControl = styled.span`
-    margin-left: 0.5rem;
+const CacheContainer = styled.div`
     margin-top: auto;
     margin-bottom: auto;
+`
+const Ttl = styled.input`
+    width: 2.4em;
+    text-align: right;
+    padding: 0.2em;
+    border: 0;
+`
+const TtlControl = styled.span`
     label {
-        margin-bottom: 0;
+        font-weight: bold;
     }
 `
-const Recurse = styled.input`
-    margin-left: 0.3rem;
-    vertical-align: middle;
+const CacheButton = styled(Button)`
+    margin-left: 0.3em;
+    font-size: 1em;
+    max-height: 2em;
+    margin-top: auto;
+    margin-bottom: auto;
+`
+const RefreshCacheButton = styled(CacheButton)`
+    padding: 0.2em 0.3em;
+    .refresh-cache-label {
+        font-size: 1.3em;
+        line-height: 1em;
+        vertical-align: middle;
+    }
+`
+const RecurseButton = styled(CacheButton)`
+    padding: 0.2em 0.4em;
 `
 
 // GitHub/Auth/Hokeys row
@@ -183,7 +193,6 @@ const FooterRow = styled(DivRow)``
 const Hotkeys = styled.div`
     display: inline-block;
     padding: 0.5em;
-    /*margin-right: 1em;*/
     .hotkeys-header {
         font-weight: bold;
     }
@@ -192,18 +201,28 @@ const Hotkeys = styled.div`
     }
 `
 const SettingsLabel = css`
-    font-size: 2.5em;
+    font-size: 2em;
     cursor: pointer;
     user-select: none;
     padding: 0;
     margin: auto 0.1em;
+    line-height: 1em;
 `
-const AuthLabel = styled.span`${SettingsLabel}`
+const AuthLabel = styled.span`
+    ${SettingsLabel}
+    font-size: 2.2em;
+`
 const HotKey = styled.code`
     font-size: 1.2em;
 `
-const HotkeysLabel = styled.span`${SettingsLabel}`
-const GithubLabel = styled.span`${SettingsLabel}`
+const HotkeysLabel = styled.span`
+    ${SettingsLabel}
+    font-size: 2.7em;
+`
+const GithubLabel = styled.span`
+    ${SettingsLabel}
+    font-size: 1em;
+`
 
 // Credentials
 
@@ -771,7 +790,6 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
                     }
                 </Breadcrumbs>
                 <MetadataEl>
-                    <span className="metadatum">{numChildren === undefined ? '?' : numChildren} children,{' '}</span>
                     <span className="metadatum">fetched {timestamp ? renderDatetime(timestamp, datetimeFmt) : '?'}</span>
                 </MetadataEl>
             </HeaderRow>
@@ -839,63 +857,82 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
                 </FilesList>
             </DivRow>
             <PaginationRow>
-                <PaginationButton onClick={() => setPageIdxStr(toPageIdxStr(0))} disabled={cantPrv}>{'<<'}</PaginationButton>{' '}
-                <PaginationButton onClick={() => setPageIdxStr(toPageIdxStr(pageIdx - 1))} disabled={cantPrv}>{'<'}</PaginationButton>{' '}
-                <PaginationButton onClick={() => setPageIdxStr(toPageIdxStr(pageIdx + 1))} disabled={cantNxt}>{'>'}</PaginationButton>{' '}
-                <PaginationButton onClick={() => setPageIdxStr(toPageIdxStr((numPages || 0) - 1))} disabled={cantNxt}>{'>>'}</PaginationButton>{' '}
-                <PageNumber>
-                    Page{' '}
-                    <GotoPage
-                        type="number"
-                        value={pageIdxStr}
-                        onChange={e => setPageIdxStr(e.target.value || '')}
-                    />{' '}
-                    <span>of {numPages === null ? '?' : numPages}</span>{' ⨉ '}
-                    <PageSizeSelect
-                        value={pageSize}
-                        onChange={e => setPageSize(Number(e.target.value))}
-                    >
-                        {[10, 20, 50, 100].map(pageSize =>
-                            <option key={pageSize} value={pageSize}>{pageSize}</option>
-                        )}
-                    </PageSizeSelect>
-                </PageNumber>
-                {' '}
+                {
+                    numPages !== 1
+                    && (
+                        <span className={"pgination-controls"}>
+                            <span className={"pagination-buttons"}>
+                                <PaginationButton onClick={() => setPageIdxStr(toPageIdxStr(0))} disabled={cantPrv}>{'<<'}</PaginationButton>{' '}
+                                <PaginationButton onClick={() => setPageIdxStr(toPageIdxStr(pageIdx - 1))} disabled={cantPrv}>{'<'}</PaginationButton>{' '}
+                                <PaginationButton onClick={() => setPageIdxStr(toPageIdxStr(pageIdx + 1))} disabled={cantNxt}>{'>'}</PaginationButton>{' '}
+                                <PaginationButton onClick={() => setPageIdxStr(toPageIdxStr((numPages || 0) - 1))} disabled={cantNxt}>{'>>'}</PaginationButton>{' '}
+                            </span>
+                            <PageNumber>
+                                Page
+                                <GotoPage
+                                    type="number"
+                                    value={pageIdxStr}
+                                    onChange={e => setPageIdxStr(e.target.value || '')}
+                                />
+                                <span>of {numPages === null ? '?' : numPages}</span>{' ⨉'}
+                                <PageSizeSelect
+                                    value={pageSize}
+                                    onChange={e => setPageSize(Number(e.target.value))}
+                                >
+                                    {[10, 20, 50, 100].map(pageSize =>
+                                        <option key={pageSize} value={pageSize}>{pageSize}</option>
+                                    )}
+                                </PageSizeSelect>
+                            </PageNumber>
+                        </span>
+                    )
+                }
+                {
+                    numChildren !== null
+                    && <NumChildrenContainer>
+                        { numPages !== 1 && <>,{' '}</> }
+                        <NumChildren>{ numPages !== 1 ?'c':'C'}hildren {start + 1} – {start + rows.length} of {numChildren}</NumChildren>
+                    </NumChildrenContainer>
+                }
             </PaginationRow>
             <CacheRow>
-                <Tooltip id={"cache-ttl"} css={center} placement={"bottom"} title={"Length of time to keep cached S3 info before purging/refreshing"}>
-                    <TtlControl>
-                        TTL:{' '}
-                        <Ttl
-                            type="text"
-                            defaultValue={ttl}
-                            onChange={e => {
-                                const ttl = e.target.value
-                                const d = parseDuration(ttl)
-                                if (d) {
-                                    setTtl(ttl)
-                                }
-                            }}
-                        />
-                    </TtlControl>
-                </Tooltip>
-                <Tooltip id={"refresh-cache"} placement={"bottom"} title={"Clear/Refresh cache"}>
-                    <RefreshCacheButton onClick={() => clearCache()}>♻️</RefreshCacheButton>
-                </Tooltip>
-                <Tooltip id={"recurse"} css={center} placement={"bottom"} title={
-                    <span>Recursively fetch subdirectories, compute total sizes / mtimes</span>
-                }>
-                    <RecurseControl>
-                        <label>
-                            Recurse:
-                            <Recurse
-                                type="checkbox"
-                                checked={eagerMetadata}
-                                onChange={e => setEagerMetadata(e.target.checked)}
+                <CacheContainer>
+                    <Tooltip id={"cache-ttl"} css={center} placement={"bottom"} title={"Length of time to keep cached S3 info before purging/refreshing"}>
+                        <TtlControl>
+                            <label>Cache:</label>{' '}
+                            TTL:
+                            <Ttl
+                                type="text"
+                                defaultValue={ttl}
+                                onChange={e => {
+                                    const ttl = e.target.value
+                                    const d = parseDuration(ttl)
+                                    if (d) {
+                                        setTtl(ttl)
+                                    }
+                                }}
                             />
-                        </label>
-                    </RecurseControl>
-                </Tooltip>
+                        </TtlControl>
+                    </Tooltip>
+                    <Tooltip id={"refresh-cache"} placement={"bottom"} title={
+                        "Clear/Refresh cache"
+                    }>
+                        <RefreshCacheButton onClick={() => clearCache()}>
+                            <span className={"refresh-cache-label"}>♻</span>
+                        ️</RefreshCacheButton>
+                    </Tooltip>
+                    <Tooltip id={"recurse"} clickToPin={false} css={center} placement={"bottom"} title={
+                        "Recursively fetch subdirectories, compute total sizes / mtimes"
+                    }>
+                        {/*<RecurseControl>*/}
+                            <RecurseButton disabled={eagerMetadata}>
+                                <span onClick={e => setEagerMetadata(!eagerMetadata)}>
+                                    Recurse
+                                </span>
+                            </RecurseButton>
+                        {/*</RecurseControl>*/}
+                    </Tooltip>
+                </CacheContainer>
             </CacheRow>
             <FooterRow>
                 <Tooltip id={"github-header"} css={center} clickToPin={false} arrow placement="bottom" title="See this project's open issues on GitHub">
