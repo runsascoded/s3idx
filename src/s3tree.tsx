@@ -22,6 +22,7 @@ import {stripPrefix} from "./utils";
 import {GithubIssuesLink, issuesUrl} from "./github-link";
 import {CredentialsOptions} from "aws-sdk/lib/credentials";
 import {center, makeTooltip} from "./tooltip";
+import {tooltipClasses} from "@mui/material/Tooltip";
 
 // Container / Row styles
 
@@ -182,16 +183,19 @@ const Hotkeys = styled.div`
         padding-right: 0.5em;
     }
 `
-const HotKey = styled.code`
-    font-size: 1.2em;
-`
-const HotkeysLabel = styled.span`
+const SettingsLabel = css`
     font-size: 2.5em;
     cursor: pointer;
     user-select: none;
     padding: 0;
-    margin: 0;
+    margin: auto 0.1em;
 `
+const AuthLabel = styled.span`${SettingsLabel}`
+const HotKey = styled.code`
+    font-size: 1.2em;
+`
+const HotkeysLabel = styled.span`${SettingsLabel}`
+const GithubLabel = styled.span`${SettingsLabel}`
 
 // Credentials
 
@@ -884,7 +888,24 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
                 </Tooltip>
             </PaginationRow>
             <FooterRow>
-                <GithubIssuesLink Tooltip={Tooltip} />
+                <Tooltip id={"github-header"} css={center} clickToPin={false} arrow placement="bottom" title="See this project's open issues on GitHub">
+                    <GithubLabel>
+                        <GithubIssuesLink />
+                    </GithubLabel>
+                </Tooltip>
+                <Tooltip
+                    id={"auth"}
+                    placement={"bottom"}
+                    css={{
+                        [`& .${tooltipClasses.tooltip}`]: {
+                            maxWidth: '30em',
+                            padding: '0.8rem',
+                        },
+                    }}
+                    title={<div>{credentialsEl}</div>}
+                >
+                    <AuthLabel>🔒</AuthLabel>
+                </Tooltip>
                 <Tooltip id={"hotkeys"} placement={"right"} title={
                     <Hotkeys>
                         <div className={"hotkeys-header"}>Hotkeys:</div>
