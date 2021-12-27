@@ -1,7 +1,6 @@
 import styled from "styled-components";
 import React, {FC} from "react";
-import {Props, Props0, PublicProps, Tooltip0, TooltipProps} from "./tooltip";
-import * as mui from "@mui/material";
+import {Props} from "./tooltip";
 
 export const repoUrl = "https://github.com/runsascoded/s3idx"
 export const issuesUrl = `${repoUrl}/issues`
@@ -13,7 +12,7 @@ export const GithubLink = styled.a`
     margin-top: 0.4rem;
 `
 
-export function GithubIssuesLink({ Tooltip, }: { Tooltip: FC<PublicProps> }) {
+export function GithubIssuesLink({ Tooltip, }: { Tooltip: FC<Props> }) {
     return (
         <Tooltip id={"github-header"} arrow placement="right-start" title="See this project's open issues on GitHub">
             <GithubLink href={issuesUrl}>

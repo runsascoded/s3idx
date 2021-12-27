@@ -1,4 +1,4 @@
-import React, {ReactElement, useCallback, useEffect, useMemo, useRef, useState,} from "react";
+import React, {useCallback, useEffect, useMemo, useRef, useState,} from "react";
 import moment, {Duration} from 'moment'
 import {Link, useNavigate, useParams} from "react-router-dom";
 import useEventListener from "@use-it/event-listener";
@@ -18,8 +18,7 @@ import {ColumnHeader, HeaderSettings} from "./column-header";
 import {stripPrefix} from "./utils";
 import {GithubIssuesLink, issuesUrl} from "./github-link";
 import {CredentialsOptions} from "aws-sdk/lib/credentials";
-import {makeTooltip,/*makeTooltip, */Props, Props0, PublicProps, Tooltip0, TooltipProps} from "./tooltip";
-import * as mui from "@mui/material";
+import {makeTooltip} from "./tooltip";
 
 // Container / Row styles
 

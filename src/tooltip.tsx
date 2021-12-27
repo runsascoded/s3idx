@@ -5,35 +5,37 @@ import styled from "styled-components";
 import {Setter} from "./utils";
 import useEventListener from "@use-it/event-listener";
 
-export type TooltipProps = {
+export type MakeTooltipProps = {
     openTooltipId: string | null
     handleOpen: (id: string) => void
     handleClose: (id: string) => void
 }
-export type State = {
+// We inject a component above the mui.Tooltip that pulls this state field (+setter) out as a prop, so that it is
+// accessible from within the styling closure below. Is there a better / more idiomatic way to do this?
+export type LiftedState = {
     clicked: boolean
     setClicked: Setter<boolean>
 }
-export type PublicProps = mui.TooltipProps & { id: string }
-export type Props0 = PublicProps & TooltipProps
-export type Props = Props0 & State
+export type Props = mui.TooltipProps & { id: string }
+export type OuterProps = Props & MakeTooltipProps
+export type InnerProps = OuterProps & LiftedState
 
 const TooltipContainer = styled.span``
 
-export const Tooltip0 = (props: Props0) => {
+export const OuterTooltip = (props: OuterProps) => {
     // Need this to be a prop on the actual Tooltip below, so that it's passed to the `CreateStyledComponent` that
     // configures tooltip styles
     const [clicked, setClicked] = useState(false)
-    return <Tooltip {...props} {...{ clicked, setClicked, }}/>
+    return <InnerTooltip {...props} {...{ clicked, setClicked, }}/>
 }
 
-export const Tooltip = mui.styled(
+export const InnerTooltip = mui.styled(
     ({
          className, arrow, children, title,
          id, openTooltipId, handleOpen, handleClose,
          clicked, setClicked,
          ...props
-    }: Props) => {
+    }: InnerProps) => {
         const [open, setOpen] = useState(false);
         if (openTooltipId !== id) {
             if (openTooltipId) {
@@ -98,34 +100,35 @@ export const Tooltip = mui.styled(
                 </mui.Tooltip>
         )
 })(
-    ({ theme, clicked }) => {
-        return {
-            [`& .${tooltipClasses.tooltip}`]: {
-                backgroundColor: theme.palette.common.black,
-                color: theme.palette.common.white,
-                fontSize: '1em',
-                padding: clicked ? '0.2em' : '0.4em',
-                border: clicked ? '0.2em solid orange' : undefined,
-            },
-            [`& .${tooltipClasses.arrow}`]: {
-                color: theme.palette.common.black,
-            },
-            '.settings-tooltip': {
-                margin: '0.3rem 0',
-            },
-            '.control-header': {
-                fontWeight: 'bold',
-                marginBottom: '0.4rem',
-            },
-            '.sub-control > label': {
-                display: 'block',
-                marginBottom: 0,
-            }
+    ({ theme, clicked }) => ({
+        // Accessing `clicked` here (since it is a prop of `InnerTooltip`) is the reason for the existence of
+        // `OuterTooltip`, which declares `clicked` as state and makes it a prop of `InnerTooltip`. Normally `clicked`
+        // would be state on `InnerTooltip`.
+        [`& .${tooltipClasses.tooltip}`]: {
+            backgroundColor: theme.palette.common.black,
+            color: theme.palette.common.white,
+            fontSize: '1em',
+            padding: clicked ? '0.2em' : '0.4em',
+            border: clicked ? '0.2em solid orange' : undefined,
+        },
+        [`& .${tooltipClasses.arrow}`]: {
+            color: theme.palette.common.black,
+        },
+        '.settings-tooltip': {
+            margin: '0.3rem 0',
+        },
+        '.control-header': {
+            fontWeight: 'bold',
+            marginBottom: '0.4rem',
+        },
+        '.sub-control > label': {
+            display: 'block',
+            marginBottom: 0,
         }
-    }
+    })
 );
 
-export function makeTooltip(): FC<PublicProps> {
+export function makeTooltip(): FC<Props> {
 
     const [ openTooltipId, setOpenTooltipId,] = useState<string | null>(null)
 
@@ -153,7 +156,7 @@ export function makeTooltip(): FC<PublicProps> {
         [ openTooltipId ]
     )
 
-    const tooltipProps: TooltipProps = useMemo(
+    const tooltipProps: MakeTooltipProps = useMemo(
         () => ({
             openTooltipId,
             handleOpen: handleTooltipOpen,
@@ -162,8 +165,8 @@ export function makeTooltip(): FC<PublicProps> {
         [ openTooltipId ],
     )
 
-    const Tooltip = useCallback<(props: PublicProps) => JSX.Element>(
-        (props: PublicProps) => <Tooltip0 {...tooltipProps} {...props} />,
+    const Tooltip = useCallback<(props: Props) => JSX.Element>(
+        (props: Props) => <OuterTooltip {...tooltipProps} {...props} />,
         [ tooltipProps, ],
     )
     return Tooltip
