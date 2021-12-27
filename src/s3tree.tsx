@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState,} from "react";
-import moment, {Duration} from 'moment'
+import moment, {Duration, Moment} from 'moment'
 import {Link, useNavigate, useParams} from "react-router-dom";
 import useEventListener from "@use-it/event-listener";
 import {Dir, File, parseDuration, Row, Fetcher} from "./s3/fetcher";
@@ -68,10 +68,6 @@ li+li:before {
     color: black;
     content: "/";
 }
-`
-const MetadataEl = styled.span`
-    margin-top: .75rem;
-    margin-left: 1rem;
 `
 
 // Files table
@@ -255,11 +251,12 @@ const { ceil, floor, max, min } = Math
 
 function DirRow(
     { Prefix: key }: Dir,
-    { bucket, bucketUrlRoot, urlPrefix, duration, datetimeFmt, sizeFmt, credentials, endpoint, s3BucketEndpoint, }: {
+    { bucket, bucketUrlRoot, urlPrefix, duration, datetimeFmt, fetchedFmt, sizeFmt, credentials, endpoint, s3BucketEndpoint, }: {
         bucket: string,
         bucketUrlRoot: boolean,
         duration: Duration,
         datetimeFmt: DatetimeFmt,
+        fetchedFmt: DatetimeFmt,
         sizeFmt: SizeFmt,
         credentials?: CredentialsOptions,
         endpoint?: string,
@@ -278,6 +275,7 @@ function DirRow(
     })
     const totalSize = fetcher.cache?.totalSize
     const mtime = fetcher.cache?.LastModified
+    const timestamp = fetcher.cache?.timestamp
     const url = bucketUrlRoot ? `/${bucket}/${key}` : (urlPrefix ? `/${stripPrefix(urlPrefix.split('/'), key)}` :`/${key}`)
     return <tr key={key}>
         <td key="name">
@@ -285,16 +283,25 @@ function DirRow(
         </td>
         <td key="size">{renderSize(totalSize, sizeFmt)}</td>
         <td key="mtime">{mtime ? renderDatetime(mtime, datetimeFmt) : '?'}</td>
+        <td key="fetched">{timestamp ? renderDatetime(timestamp, fetchedFmt) : '?'}</td>
     </tr>
 }
 
 function FileRow(
     { Key, LastModified, Size, }: File,
-    { prefix, datetimeFmt, sizeFmt, }: { prefix: string[], datetimeFmt: DatetimeFmt, sizeFmt: SizeFmt, }) {
+    { prefix, datetimeFmt, fetchedFmt, sizeFmt, timestamp, }: {
+        prefix: string[],
+        datetimeFmt: DatetimeFmt,
+        fetchedFmt: DatetimeFmt,
+        sizeFmt: SizeFmt,
+        timestamp?: Moment,
+    }
+) {
     return <tr key={Key}>
         <td key="name">{Key ? stripPrefix(prefix, Key) : ""}</td>
         <td key="size">{renderSize(Size, sizeFmt)}</td>
         <td key="mtime">{renderDatetime(LastModified, datetimeFmt)}</td>
+        <td key="fetched">{timestamp ? renderDatetime(timestamp, fetchedFmt) : '?'}</td>
     </tr>
 }
 
@@ -307,10 +314,12 @@ function TableRow(
         prefix: string[],
         urlPrefix?: string,
         datetimeFmt: DatetimeFmt,
+        fetchedFmt: DatetimeFmt,
         sizeFmt: SizeFmt,
         credentials?: CredentialsOptions,
         endpoint?: string,
         s3BucketEndpoint?: boolean,
+        timestamp?: Moment,
     }
 ) {
     return (
@@ -326,6 +335,7 @@ const usePaginationInfoInURL = createPersistedState('paginationInfoInURL')
 const useTtl = createPersistedState('ttl')
 const useEagerMetadata = createPersistedState('eagerMetadata')
 const useDatetimeFmt = createPersistedState('datetimeFmt')
+const useFetchedFmt = createPersistedState('fetchedFmt')
 const useSizeFmt = createPersistedState('sizeFmt')
 
 const h10 = moment.duration(10, 'h')
@@ -342,6 +352,7 @@ function renderSize(size: number | undefined, fmt: SizeFmt) {
 
 type S3IdxConfig = {
     datetimeFmt: DatetimeFmt
+    fetchedFmt: DatetimeFmt
     sizeFmt: SizeFmt
     eagerMetadata: boolean
     ttl: string
@@ -353,6 +364,7 @@ type S3IdxConfig = {
 
 const DefaultConfigs: S3IdxConfig = {
     datetimeFmt: "YYYY-MM-DD HH:mm:ss",
+    fetchedFmt: 'relative',
     sizeFmt: 'iec',
     eagerMetadata: false,
     ttl: '10h',
@@ -395,6 +407,7 @@ export function S3Tree(
     const navigate = useNavigate()
 
     const [ datetimeFmt, setDatetimeFmt ] = useDatetimeFmt<DatetimeFmt>(config.datetimeFmt)
+    const [ fetchedFmt, setFetchedFmt ] = useFetchedFmt<DatetimeFmt>(config.fetchedFmt)
     const [ sizeFmt, setSizeFmt ] = useSizeFmt<SizeFmt>(config.sizeFmt)
 
     const path = (params['*'] || '').replace(/\/$/, '').replace(/^\//, '')
@@ -789,9 +802,6 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
                         })
                     }
                 </Breadcrumbs>
-                <MetadataEl>
-                    <span className="metadatum">fetched {timestamp ? renderDatetime(timestamp, datetimeFmt) : '?'}</span>
-                </MetadataEl>
             </HeaderRow>
             <DivRow>
                 <FilesList>
@@ -807,8 +817,14 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
                         </th>
                         <th key="mtime">
                             {Header({
-                                label:'Modified',
+                                label: 'Modified',
                                 headerSettings: datetimeHeaderSettings,
+                                Tooltip,
+                            })}
+                        </th>
+                        <th key="fetched">
+                            {Header({
+                                label: 'Fetched',
                                 Tooltip,
                             })}
                         </th>
@@ -833,6 +849,11 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
                                 ? renderDatetime(LastModified, datetimeFmt)
                                 : (LastModified === null ? '∅' : '?')
                         }</td>
+                        <td>{
+                            timestamp
+                                ? renderDatetime(timestamp, fetchedFmt)
+                                : '?'
+                        }</td>
                     </TotalRow>
                     {
                         rows.map(row =>
@@ -845,10 +866,12 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
                                     urlPrefix: pathPrefix,
                                     duration,
                                     datetimeFmt,
+                                    fetchedFmt,
                                     sizeFmt,
                                     credentials,
                                     endpoint,
                                     s3BucketEndpoint,
+                                    timestamp,
                                 }
                             )
                         )

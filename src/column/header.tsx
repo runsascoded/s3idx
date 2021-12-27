@@ -39,18 +39,25 @@ export function Header<T extends string>(
         Tooltip: FC<Props>
     }
 ) {
+    const body = (
+        <span className={"header-span"}>
+            {label}
+        </span>
+    )
+
     return (
-        <Tooltip id={`column-${label}`} css={css} placement="bottom-start" title={
-            <div className={"settings-tooltip"} onClick={stopPropagation}>{
-                headerSettings
-                    ? <Radios label={label} {...headerSettings} />
-                    : <div>no choices available</div>
-            }</div>
-        }>
-            <span className={"header-span"}>
-                <SettingsIcon>⚙️</SettingsIcon>
-                {label}
-            </span>
-        </Tooltip>
+        headerSettings
+            ? (
+                <Tooltip id={`column-${label}`} css={css} placement="bottom-start" title={
+                    <div className={"settings-tooltip"} onClick={stopPropagation}>{
+                        headerSettings
+                            ? <Radios label={label} {...headerSettings} />
+                            : <div>no choices available</div>
+                    }</div>
+                }>
+                    {body}
+                </Tooltip>
+            )
+            : body
     )
 }
