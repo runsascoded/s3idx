@@ -18,7 +18,7 @@ export type LiftedState = {
     setClicked: Setter<boolean>
 }
 export type CSS = { [k: string]: { [k: string]: string | number | undefined } }
-export type Props = mui.TooltipProps & { id: string, css?: CSS }
+export type Props = mui.TooltipProps & { id: string, css?: CSS, clickToPin?: boolean }
 export type OuterProps = Props & MakeTooltipProps
 export type InnerProps = OuterProps & LiftedState
 
@@ -34,7 +34,7 @@ export const OuterTooltip = (props: OuterProps) => {
 export const InnerTooltip = mui.styled(
     ({
          className, arrow, children, title,
-         id, openTooltipId, handleOpen, handleClose,
+         id, clickToPin, openTooltipId, handleOpen, handleClose,
          clicked, setClicked,
          ...props
     }: InnerProps) => {
@@ -66,6 +66,7 @@ export const InnerTooltip = mui.styled(
             }
         }
         const handleTooltipClick = (e: any) => {
+            if (clickToPin === false) return  // default to true
             e.stopPropagation()
             e.preventDefault()
             // console.log("Tooltip: body click:", id)
@@ -88,7 +89,6 @@ export const InnerTooltip = mui.styled(
                 <mui.Tooltip
                     key={"mui.Tooltip"}
                     onClick={handleTooltipClick}
-                    onMouseOver={handleTooltipOpen}
                     onOpen={handleTooltipOpen}
                     onClose={handleTooltipClose}
                     open={open || clicked}

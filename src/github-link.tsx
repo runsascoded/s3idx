@@ -16,7 +16,7 @@ export const GithubImg = styled.img`
 
 export function GithubIssuesLink({ Tooltip, }: { Tooltip: FC<Props> }) {
     return (
-        <Tooltip id={"github-header"} css={center} arrow placement="bottom" title="See this project's open issues on GitHub">
+        <Tooltip id={"github-header"} css={center} clickToPin={false} arrow placement="bottom" title="See this project's open issues on GitHub">
             <GithubLink href={issuesUrl}>
                 <GithubImg src={`data:image/png;base64,${githubLogo}`}/>
             </GithubLink>
