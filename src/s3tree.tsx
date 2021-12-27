@@ -115,9 +115,9 @@ const InlineBreadcrumb = styled.span``
 // Pagination / Cache controls
 
 const PaginationRow = styled(DivRow)`
-    margin-top: 1rem;
-    line-height: 1.2rem;
-    font-size: 1.1em;
+    margin-top: 1em;
+    line-height: 1.2em;
+    /*font-size: 1.1em;*/
 `
 const Button = styled.button`
     font-size: 1.1em;
@@ -135,12 +135,20 @@ const PageNumber = styled.span`
     margin-right: 0.5rem;
 `
 const GotoPage = styled.input`
-    width: 2.6rem;
+    width: 2.6em;
     text-align: right;
-    padding: 0.3em;
+    padding: 0.3em 0em;
+    border: 0;
 `
 const PageSizeSelect = styled.select`
-    padding: 0.2em;
+    padding: 0.2em 0.1em;
+    border: 0;
+`
+
+// Cache/TTL row
+
+const CacheRow = styled(DivRow)`
+    margin-top: 1rem;
 `
 const Ttl = styled.input`
     width: 2.9em;
@@ -169,7 +177,7 @@ const Recurse = styled.input`
     vertical-align: middle;
 `
 
-// Footer / hotkey row
+// GitHub/Auth/Hokeys row
 
 const FooterRow = styled(DivRow)``
 const Hotkeys = styled.div`
@@ -853,6 +861,8 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
                     </PageSizeSelect>
                 </PageNumber>
                 {' '}
+            </PaginationRow>
+            <CacheRow>
                 <Tooltip id={"cache-ttl"} css={center} placement={"bottom"} title={"Length of time to keep cached S3 info before purging/refreshing"}>
                     <TtlControl>
                         TTL:{' '}
@@ -886,7 +896,7 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
                         </label>
                     </RecurseControl>
                 </Tooltip>
-            </PaginationRow>
+            </CacheRow>
             <FooterRow>
                 <Tooltip id={"github-header"} css={center} clickToPin={false} arrow placement="bottom" title="See this project's open issues on GitHub">
                     <GithubLabel>
