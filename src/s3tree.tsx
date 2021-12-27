@@ -319,7 +319,7 @@ type S3IdxConfig = {
 
 const DefaultConfigs: S3IdxConfig = {
     datetimeFmt: "YYYY-MM-DD HH:mm:ss",
-    sizeFmt: 'iso',
+    sizeFmt: 'iec',
     eagerMetadata: false,
     ttl: '10h',
     pageSize: 20,

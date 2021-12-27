@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
+#
+# $ npm run deploy  # upload a release from dist/index.html to s3idx
+# $ npm run deploy -- -n [bucket...]  # upload dist/index.html to multiple buckets
 
 set -e
 
 ARGS=()
-bucket=s3idx
 cache=1
 dry_run=
 tag=
@@ -12,11 +14,6 @@ while (("$#")); do
   -t | --tag)
     shift
     tag="$1"
-    shift
-    ;;
-  -b | --bucket)
-    shift
-    bucket="$1"
     shift
     ;;
   -C | --no-cache)
@@ -61,7 +58,19 @@ run() {
   fi
 }
 
-# Always disable caching on the top-level index.html
-run aws s3 cp dist/index.html s3://$bucket/index.html "${args[@]}" --cache-control max-age=0,public
-# Enable caching on specific release tags (unless -C|--no-cache was passed explicitly)
-run aws s3 cp dist/index.html s3://$bucket/$tag/index.html "${args[@]}" "${cache_args[@]}"
+if [ $# -gt 0 ]; then
+  for bucket in "$@"; do
+    if [ -z "$tag" ]; then
+      src=dist/index.html
+    else
+      src="s3://s3idx/$tag/index.html"
+    fi
+    run aws s3 cp "$src" s3://$bucket/index.html "${args[@]}" "${cache_args[@]}"
+  done
+else
+  bucket=s3idx
+  # Always disable caching on the top-level index.html
+  run aws s3 cp dist/index.html s3://$bucket/index.html "${args[@]}" --cache-control max-age=0,public
+  # Enable caching on specific release tags (unless -C|--no-cache was passed explicitly)
+  run aws s3 cp dist/index.html s3://$bucket/$tag/index.html "${args[@]}" "${cache_args[@]}"
+fi

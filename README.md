@@ -110,17 +110,21 @@ Below is an informal analysis of s3idx's security assumptions and properties.
 
 ### tl;dr
 - Use on **public buckets** is believed to be secure / low-risk
-- Use on **private buckets** is believed to be secure, by me, but I'm not 100% positive, and I am not a security engineer. **USE ON PRIVATE DATA AT YOUR OWN RISK!**
-  - Access/Secret keys are submitted by the user and persisted in `localStorage`.
-  - `index.html` bundles everything it needs, and makes no requests to any external domains. No data leaves the browser, so it's in principle safe for use even on private buckets.
-  - CORS configurations on private buckets can inadvertently expose  
+- For use on **private buckets**, ["Local development"](#local-development) above shows how to run s3idx locally and point it at any bucket. The app will prompt for authentication or recommend CORS tweaks as necessary.
+- Deploying directly to **private buckets** (s3idx's `index.html` still has to be public) is believed to be secure, by me, but I'm not 100% positive, and I am not a security engineer. **DEPLOY TO PRIVATE BUCKETS AT YOUR OWN RISK!**
 
-### Public "bucket-subdomain" endpoint
+Other details:
+- Access/Secret keys (for using s3idx on private buckets) are submitted by the user and persisted in `localStorage`.
+- `index.html` bundles everything it uses, and makes no requests to any external domains (even the favicon, and any images, are either emojis or base64-encoded).
+
+### Public "bucket-subdomain" endpoint <a id="public-buckets"></a>
 In the simple case, `index.html` is deployed to a public bucket and accessed at `<bucket>.s3.amazonaws.com/index.html`. It only makes HEAD and GET requests to that domain (when it doesn't have a cached version to fall back on).
 
 ### Private buckets
-s3idx's `index.html` can be used in private buckets by:
-- deploying it as a publicly readable object (cf. see `--acl public-read` in the installation commands)
+Lots more discussion follows, but ["Local development"](#local-development) above shows how to run s3idx locally and point it at any bucket. The app will prompt for authentication or recommend CORS tweaks as necessary.
+
+s3idx can also be used in private buckets by:
+- deploying `index.html` as a publicly readable object (cf. see `--acl public-read` in the installation commands)
 - when a person visits it, it will call `listObjectsV2` to read the bucket's contents, receive an HTTP 403 error code (`AccessDenied`), and present the user with a form soliciting a "region" for the bucket as well as an access/secret key pair
 - credentials are persisted in `localStorage`, so the user will be able to browse that bucket thereafter.
 
@@ -137,9 +141,7 @@ The degree of over-permissioning required still seems quite high:
 - wildcard origin (❗️)
 - include credentials (‼️)
 
-Such a CORS configuration on private or sensitive data seems to represent a serious security rsk on its own, independent of s3idx, so I'm not too concerned about it.
-
-The more concerning possibility is that I've misunderstood some detail of how CORS works, or that I've missed some attack vector, which is very possible. Again, USE ON PRIVATE DATA AT YOUR OWN RISK! And feel free ot [file an issue](https://github.com/runsascoded/s3idx/issues/new) to discuss any of this further.
+Such a CORS configuration on private or sensitive data seems to represent a serious security rsk on its own, independent of s3idx, it's possible I've missed some CORS-based attack vector. Again, **DEPLOY AND USE ON PRIVATE BUCKETS AT YOUR OWN RISK!** and feel free ot [file an issue](https://github.com/runsascoded/s3idx/issues/new) to discuss any of this further.
 
 ### "Bucket-path" endpoints
 Another security consideration relates to S3 "bucket-path" REST API endpoints of the form `s3.amazonaws.com/<bucket>` (as opposed to the "bucket-subdomain" endpoints s3idx typically uses; example: [`s3.amazonaws.com/s3idx/index.html`](https://s3.amazonaws.com/s3idx/index.html)).
