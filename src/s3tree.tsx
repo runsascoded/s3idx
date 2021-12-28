@@ -16,33 +16,15 @@ import {CredentialsOptions} from "aws-sdk/lib/credentials";
 import {makeTooltip} from "./tooltip";
 import {FilesList,} from './files-list';
 import {makePagination, PaginationRow, toPageIdxStr} from "./pagination";
-import {Button, CodeBlock, DivRow, SettingsLabel} from "./style";
-import {AuthSettings, default as CredentialsFC} from "./credentials";
+import {Button, CodeBlock, Container, DivRow, SettingsLabel} from "./style";
+import {AuthSettings, default as CredentialsFC, useCredentials} from "./credentials";
 import {useQueryParam} from "use-query-params";
 import {boolParam} from "./search-params";
 import {S3LocationInfo, useS3Location} from "./s3/location";
+import {DefaultConfigs, S3IdxConfig} from "./config";
+import {CorsPage} from "./cors-page";
 
 // Container / Row styles
-
-const Container = styled(BootstrapContainer)`
-    margin-bottom: 2rem;
-    code {
-        font-size: 1em;
-        margin: 0 0.3rem;
-    }
-    h2 {
-        font-size: 1.6em;
-        margin-top: 0.4em;
-    }
-    h3 {
-        font-size: 1.4em;
-        margin-top: 0.7em;
-    }
-    h4 {
-        font-size: 1.2em;
-        margin-top: 0.7em;
-    }
-`
 
 // Top / Metadata row
 
@@ -128,29 +110,6 @@ const useSizeFmt = createPersistedState('sizeFmt')
 
 const h10 = moment.duration(10, 'h')
 
-type S3IdxConfig = {
-    datetimeFmt: DatetimeFmt
-    fetchedFmt: DatetimeFmt
-    sizeFmt: SizeFmt
-    eagerMetadata: boolean
-    ttl: string
-    pageSize: number,
-    s3PageSize: number,
-    paginationInfoInURL: boolean,
-    region?: string,
-}
-
-const DefaultConfigs: S3IdxConfig = {
-    datetimeFmt: "YYYY-MM-DD HH:mm:ss",
-    fetchedFmt: 'relative',
-    sizeFmt: 'iec',
-    eagerMetadata: false,
-    ttl: '10h',
-    pageSize: 20,
-    s3PageSize: 1000,
-    paginationInfoInURL: true,
-}
-
 export function S3Tree(
     { s3LocationInfo }: {
         s3LocationInfo: S3LocationInfo
@@ -186,6 +145,7 @@ export function S3Tree(
         keyPieces,
         bucketUrlRoot,
         useBucketState,
+        ancestors,
     } = useS3Location(s3LocationInfo)
 
     const params = useParams()
@@ -200,15 +160,15 @@ export function S3Tree(
 
     // Credentials
 
-    const [ region, setRegion, ] = useBucketState('region', config.region)
-    const [ accessKeyId, setAccessKeyId ] = useBucketState<string | null>('accessKeyId', null)
-    const [ secretAccessKey, setSecretAccessKey ] = useBucketState<string | null>('secretAccessKey', null)
-    const credentials: CredentialsOptions | undefined =
-        accessKeyId && secretAccessKey
-            ? { accessKeyId, secretAccessKey }
-            : undefined
-
     const { isS3Domain, urlMetadata, urlPathPrefix, } = s3LocationInfo
+
+    const credentialsState = useCredentials({ config, useBucketState, })
+    const {
+        region, setRegion,
+        accessKeyId, setAccessKeyId,
+        secretAccessKey, setSecretAccessKey,
+        credentials,
+    } = credentialsState
 
     if (isS3Domain && !urlMetadata.bucket) {
         // On non-bucket-specific s3.amazonaws.com subdomains, ensure no authentication info is stored
@@ -320,18 +280,15 @@ export function S3Tree(
 
     function Credentials(): JSX.Element {
         return <CredentialsFC {...{
-            region, setRegion,
+            state: credentialsState,
             urlMetadata,
             isS3Domain,
-            accessKeyId, setAccessKeyId,
-            secretAccessKey, setSecretAccessKey,
             setNeedsAuth,
         }} />
     }
 
     const Tooltip = makeTooltip()
 
-    const s3Url = `${endpoint}/index.html`
     if (needsAuth) {
         return (
             <Container>
@@ -341,41 +298,7 @@ export function S3Tree(
         )
     } else if (needsCors) {
         return (
-            <Container>
-                <h2>Network error</h2>
-                <p>Seems like a CORS problem (check the Developer Tools for more details). You may need to either:</p>
-                <ul>
-                    <li>enable CORS on the bucket (see below), or</li>
-                    <li>specify the bucket's region, or an access/secret key pair</li>
-                </ul>
-                <p>If the info below doesn't help, feel free to <a href={issuesUrl}>file an issue</a> with info about
-                    what you're seeing (output from JavaScript Console will be useful to include).</p>
-                <h3 id={"credentials"}>Authentication</h3>
-                {Credentials()}
-                <h3 id={"CORS"}>Enable CORS on bucket</h3>
-                <p>Bash commands for enabling:</p>
-                <CodeBlock>{`cat >cors.json <<EOF
-{
-    "CORSRules": [{
-        "AllowedHeaders": ["*"],
-        "AllowedMethods": ["GET", "HEAD"],
-        "AllowedOrigins": ["${window.location.host}"],
-        "ExposeHeaders": ["Accept-Ranges", "Content-Encoding"]
-    }]
-}
-EOF
-aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.json)"
-`}
-                </CodeBlock>
-                {
-                    isS3Domain ? null : <>
-                        <h4>Install <code>index.html</code> in bucket</h4>
-                        <p>You can also install this <code>index.html</code> in the bucket <code>{bucket}</code>, and visit it directly:</p>
-                        <CodeBlock>{`aws s3 cp s3://s3idx/index.html s3://${bucket}/index.html --content-type="text/html; charset=utf-8" --acl public-read`}</CodeBlock>
-                        <p>then visit <a href={s3Url}>{s3Url}</a></p>
-                    </>
-                }
-            </Container>
+            <CorsPage {...{ bucket, endpoint, isS3Domain, Credentials, }} />
         )
     }
 
@@ -390,17 +313,6 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
     }
 
     const end = start + rows.length
-
-    const ancestors =
-        ([] as string[])
-            .concat(keyPieces)
-            .reduce<{ key: string, name: string }[]>(
-                (prvs, nxt) => {
-                    const parent = prvs[prvs.length - 1].key
-                    return prvs.concat([{ key: parent ? `${parent}/${nxt}` : nxt, name: nxt }])
-                },
-                [ { key: '', name: bucket }, ],
-            )
 
     console.log("Rows:", rows, `keyPieces:`, keyPieces, 'ancestors:', ancestors)
 

@@ -5,6 +5,8 @@ import { Set } from "./utils"
 import {tooltipClasses} from "@mui/material/Tooltip";
 import { Props as TooltipProps } from "./tooltip"
 import {URLMetadata} from "./s3/location";
+import {CredentialsOptions} from "aws-sdk/lib/credentials";
+import {UseBucketState} from "./config";
 
 // Credentials
 
@@ -38,22 +40,54 @@ const AuthLabel = styled.span`
     font-size: 2.2em;
 `
 
+export type State = {
+    region?: string
+    setRegion: Set<string | undefined>
+    accessKeyId: string | null
+    setAccessKeyId: Set<string | null>
+    secretAccessKey: string | null
+    setSecretAccessKey: Set<string | null>
+    credentials?: CredentialsOptions
+}
+
+export function useCredentials(
+    { config, useBucketState }: {
+        config: { region?: string, }
+        useBucketState: UseBucketState
+    }
+): State {
+    const [ region, setRegion, ] = useBucketState('region', config.region)
+    const [ accessKeyId, setAccessKeyId ] = useBucketState<string | null>('accessKeyId', null)
+    const [ secretAccessKey, setSecretAccessKey ] = useBucketState<string | null>('secretAccessKey', null)
+    const credentials: CredentialsOptions | undefined =
+        accessKeyId && secretAccessKey
+            ? { accessKeyId, secretAccessKey }
+            : undefined
+
+    return {
+        region, setRegion,
+        accessKeyId, setAccessKeyId,
+        secretAccessKey, setSecretAccessKey,
+        credentials,
+    }
+}
+
 export interface Props {
-    region?: string, setRegion: Set<string | undefined>
+    state: State
     urlMetadata: URLMetadata
     isS3Domain: boolean
-    accessKeyId: string | null, setAccessKeyId: Set<string | null>
-    secretAccessKey: string | null, setSecretAccessKey: Set<string | null>
     setNeedsAuth: Set<boolean>
 }
 
 export const Credentials = (
     {
-        region, setRegion,
+        state: {
+            region, setRegion,
+            accessKeyId, setAccessKeyId,
+            secretAccessKey, setSecretAccessKey,
+        },
         urlMetadata,
         isS3Domain,
-        accessKeyId, setAccessKeyId,
-        secretAccessKey, setSecretAccessKey,
         setNeedsAuth,
     }: Props
 ) => {

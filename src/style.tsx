@@ -1,5 +1,25 @@
 import styled, {css} from "styled-components";
-import {Row as BootstrapRow} from "react-bootstrap";
+import {Container as BootstrapContainer, Row as BootstrapRow} from "react-bootstrap";
+
+export const Container = styled(BootstrapContainer)`
+    margin-bottom: 2rem;
+    code {
+        font-size: 1em;
+        margin: 0 0.3rem;
+    }
+    h2 {
+        font-size: 1.6em;
+        margin-top: 0.4em;
+    }
+    h3 {
+        font-size: 1.4em;
+        margin-top: 0.7em;
+    }
+    h4 {
+        font-size: 1.2em;
+        margin-top: 0.7em;
+    }
+`
 
 export const RowStyle = css`
     padding 0 2rem;
