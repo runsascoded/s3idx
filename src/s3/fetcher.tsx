@@ -151,7 +151,7 @@ export class Fetcher {
         this.pageSize = pageSize || 1000
         this.authenticated = !!IdentityPoolId || !!credentials
         this.cacheCb = cacheCb
-        this.s3BucketEndpoint = s3BucketEndpoint
+        this.s3BucketEndpoint = s3BucketEndpoint === false ? false : true
         this.endpoint = endpoint
 
         if (region) {

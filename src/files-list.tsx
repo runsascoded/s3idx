@@ -56,7 +56,7 @@ function renderSize(size: number | undefined, fmt: SizeFmt) {
 
 function DirRow(
     { Prefix: key }: Dir,
-    { bucket, bucketUrlRoot, urlPrefix, duration, datetimeFmt, fetchedFmt, sizeFmt, credentials, endpoint, s3BucketEndpoint, }: {
+    { bucket, bucketUrlRoot, urlPathPrefix, duration, datetimeFmt, fetchedFmt, sizeFmt, credentials, endpoint, }: {
         bucket: string,
         bucketUrlRoot: boolean,
         duration: Duration,
@@ -65,8 +65,7 @@ function DirRow(
         sizeFmt: SizeFmt,
         credentials?: CredentialsOptions,
         endpoint?: string,
-        s3BucketEndpoint?: boolean,
-        urlPrefix?: string,
+        urlPathPrefix?: string,
     },
 ) {
     const pieces = key.split('/')
@@ -76,12 +75,11 @@ function DirRow(
         ttl: duration,
         credentials,
         endpoint,
-        s3BucketEndpoint,
     })
     const totalSize = fetcher.cache?.totalSize
     const mtime = fetcher.cache?.LastModified
     const timestamp = fetcher.cache?.timestamp
-    const url = bucketUrlRoot ? `/${bucket}/${key}` : (urlPrefix ? `/${stripPrefix(urlPrefix.split('/'), key)}` :`/${key}`)
+    const url = bucketUrlRoot ? `/${bucket}/${key}` : (urlPathPrefix ? `/${stripPrefix(urlPathPrefix.split('/'), key)}` :`/${key}`)
     return <tr key={key}>
         <td key="name">
             <Link to={url}>{name}</Link>
@@ -117,13 +115,12 @@ function TableRow(
         bucketUrlRoot: boolean,
         duration: Duration,
         prefix: string[],
-        urlPrefix?: string,
+        urlPathPrefix?: string,
         datetimeFmt: DatetimeFmt,
         fetchedFmt: DatetimeFmt,
         sizeFmt: SizeFmt,
         credentials?: CredentialsOptions,
         endpoint?: string,
-        s3BucketEndpoint?: boolean,
         timestamp?: Moment,
     }
 ) {
@@ -138,7 +135,7 @@ namespace ns {
     export interface Props {
         rows: Row[],
         bucket: string, keyPieces: string[],
-        bucketUrlRoot: boolean, pathPrefix?: string,
+        bucketUrlRoot: boolean, urlPathPrefix?: string,
         ancestors: { key: string, name: string }[],
         sizeFmt: SizeFmt, setSizeFmt: Set<SizeFmt>,
         datetimeFmt: DatetimeFmt, setDatetimeFmt: Set<DatetimeFmt>,
@@ -150,14 +147,13 @@ namespace ns {
         fetchedFmt: DatetimeFmt,
         credentials?: CredentialsOptions,
         endpoint: string,
-        s3BucketEndpoint: boolean,
     }
 
     export const FilesList = (
         {
             rows,
             bucket, keyPieces,
-            bucketUrlRoot, pathPrefix,
+            bucketUrlRoot, urlPathPrefix,
             ancestors,
             sizeFmt, setSizeFmt,
             datetimeFmt, setDatetimeFmt,
@@ -165,7 +161,7 @@ namespace ns {
             totalSize, LastModified, timestamp,
             duration,
             fetchedFmt,
-            credentials, endpoint, s3BucketEndpoint,
+            credentials, endpoint,
         }: Props
     ) => {
 
@@ -223,7 +219,7 @@ namespace ns {
                         {
                             ancestors.map(({ key, name }) => {
                                 const path = `${bucket}/${key}`
-                                const url = bucketUrlRoot ? `/${bucket}/${key}` : (pathPrefix ? `/${stripPrefix(pathPrefix.split('/'), key)}` :`/${key}`)
+                                const url = bucketUrlRoot ? `/${bucket}/${key}` : (urlPathPrefix ? `/${stripPrefix(urlPathPrefix.split('/'), key)}` :`/${key}`)
                                 return <InlineBreadcrumb key={path}>
                                     <Link to={url}>{name}</Link>
                                 </InlineBreadcrumb>
@@ -250,14 +246,13 @@ namespace ns {
                                 bucket,
                                 prefix: keyPieces,
                                 bucketUrlRoot,
-                                urlPrefix: pathPrefix,
+                                urlPathPrefix,
                                 duration,
                                 datetimeFmt,
                                 fetchedFmt,
                                 sizeFmt,
                                 credentials,
                                 endpoint,
-                                s3BucketEndpoint,
                                 timestamp,
                             }
                         )

@@ -18,6 +18,9 @@ import {FilesList,} from './files-list';
 import {makePagination, PaginationRow, toPageIdxStr} from "./pagination";
 import {Button, CodeBlock, DivRow, SettingsLabel} from "./style";
 import {AuthSettings, default as CredentialsFC} from "./credentials";
+import {useQueryParam} from "use-query-params";
+import {boolParam} from "./search-params";
+import {S3LocationInfo, useS3Location} from "./s3/location";
 
 // Container / Row styles
 
@@ -149,20 +152,18 @@ const DefaultConfigs: S3IdxConfig = {
 }
 
 export function S3Tree(
-    { bucket = '', pathPrefix, endpoint }: {
-        bucket: string
-        pathPrefix?: string
-        endpoint?: string
+    { s3LocationInfo }: {
+        s3LocationInfo: S3LocationInfo
     }
 ) {
-    let s3BucketEndpoint = true  // TODO: remove
+    // let s3BucketEndpoint = true  // TODO: remove
     const globalConfig = useRef((window as any).S3IDX_CONFIG)
     const config: S3IdxConfig = { ...DefaultConfigs, ...globalConfig.current }
 
-    // CORS error handling
+    // CORS/Auth error handling
 
     const [ needsCors, setNeedsCors ] = useState(false)
-    const [ needsAuth, setNeedsAuth ] = useState(false)
+    const [ needsAuth, setNeedsAuth ] = useQueryParam('auth', boolParam())
 
     const handleRequestError = (err: any) => {
         console.log("Error!", err)
@@ -178,60 +179,21 @@ export function S3Tree(
         }
     }
 
+    const {
+        bucket,
+        endpoint,
+        key,
+        keyPieces,
+        bucketUrlRoot,
+        useBucketState,
+    } = useS3Location(s3LocationInfo)
+
     const params = useParams()
     const navigate = useNavigate()
 
     const [ datetimeFmt, setDatetimeFmt ] = useDatetimeFmt<DatetimeFmt>(config.datetimeFmt)
     const [ fetchedFmt, setFetchedFmt ] = useFetchedFmt<DatetimeFmt>(config.fetchedFmt)
     const [ sizeFmt, setSizeFmt ] = useSizeFmt<SizeFmt>(config.sizeFmt)
-
-    const path = (params['*'] || '').replace(/\/$/, '').replace(/^\//, '')
-    const pathPieces = (pathPrefix ? pathPrefix.split('/') : []).concat(path ? path.split('/') : [])
-    const keyPieces = bucket ? pathPieces : pathPieces.slice(1)
-    const bucketUrlRoot = !bucket
-    if (!bucket) {
-        bucket = pathPieces[0]
-        if (endpoint) {
-            throw Error(`Endpoint ${endpoint} known before bucket ${bucket}`)
-        }
-        // console.log(`Inferred bucket ${bucket} from URL path ${path}`)
-    }
-
-    const { host, hostname, } = window.location
-    const rgx = /((?<bucket>.*)\.)?s3(-website)?(\.(?<region>[^.]+))?\.amazonaws\.com$/
-    const groups = hostname.match(rgx)?.groups as { bucket?: string, region?: string }
-    const awsDomain = !!groups
-    if (!endpoint) {
-        if (awsDomain) {
-            if (groups.bucket) {
-                if (groups.bucket !== bucket) {
-                    throw Error(`Bucket ${bucket} doesn't match ${groups.bucket} from hostname ${hostname}`)
-                }
-                endpoint = `https://${host}`
-            } else {
-                endpoint = `https://${host}/${bucket}`
-            }
-            s3BucketEndpoint = true
-        } else {
-            endpoint = `https://${bucket}.s3.amazonaws.com`
-            // endpoint = `https://s3.amazonaws.com/${bucket}`
-            s3BucketEndpoint = true
-        }
-        // console.log(`Computed endpoint: ${endpoint} (${s3BucketEndpoint})`)
-    }
-
-    const key = keyPieces.join('/')
-    // console.log(`Render ${bucket}/${key}: params`, params, ` (prefix ${pathPrefix}), endpoint ${endpoint} (bucket endpoint? ${s3BucketEndpoint})`)
-
-    useEffect( () => { document.title = bucket }, [ bucket ])
-
-    function createBucketState(key: string) {
-        return createPersistedState(JSON.stringify({ bucket, s3idx: key }))
-    }
-    function useBucketState<T>(key: string, defaultValue: T) {
-        const useState = createBucketState(key)
-        return useState<T>(defaultValue)
-    }
 
     const [ rows, setRows ] = useState<Row[] | null>(null)
     const [ s3PageSize, ] = useState(config.s3PageSize)  // TODO
@@ -246,7 +208,9 @@ export function S3Tree(
             ? { accessKeyId, secretAccessKey }
             : undefined
 
-    if (awsDomain && !groups.bucket) {
+    const { isS3Domain, urlMetadata, urlPathPrefix, } = s3LocationInfo
+
+    if (isS3Domain && !urlMetadata.bucket) {
         // On non-bucket-specific s3.amazonaws.com subdomains, ensure no authentication info is stored
         if (accessKeyId) setAccessKeyId(null)
         if (secretAccessKey) setSecretAccessKey(null)
@@ -269,14 +233,13 @@ export function S3Tree(
             pageSize: s3PageSize,
             ttl: duration,
             credentials,
-            s3BucketEndpoint,
             endpoint,
             cacheCb: cache => {
                 console.log("CacheCb!", cache)
                 setMetadataNonce({})
             }
         })
-    }, [ fetcherNonce, bucket, key, region, accessKeyId, secretAccessKey, endpoint, s3BucketEndpoint, ])
+    }, [ fetcherNonce, bucket, key, region, accessKeyId, secretAccessKey, endpoint, ])
 
     // Current-directory metadata
 
@@ -307,7 +270,7 @@ export function S3Tree(
             if (e.key == 'u') {
                 if (keyPieces.length) {
                     const newKey = keyPieces.slice(0, keyPieces.length - 1).join('/')
-                    const url = bucketUrlRoot ? `/${bucket}/${newKey}` : (pathPrefix ? `/${stripPrefix(pathPrefix.split('/'), newKey)}` :`/${newKey}`)
+                    const url = bucketUrlRoot ? `/${bucket}/${newKey}` : (urlPathPrefix ? `/${stripPrefix(urlPathPrefix.split('/'), newKey)}` :`/${newKey}`)
                     console.log(`Navigating to ${url}`)
                     navigate(url)
                 }
@@ -358,8 +321,8 @@ export function S3Tree(
     function Credentials(): JSX.Element {
         return <CredentialsFC {...{
             region, setRegion,
-            groups,
-            awsDomain,
+            urlMetadata,
+            isS3Domain,
             accessKeyId, setAccessKeyId,
             secretAccessKey, setSecretAccessKey,
             setNeedsAuth,
@@ -405,7 +368,7 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
 `}
                 </CodeBlock>
                 {
-                    awsDomain ? null : <>
+                    isS3Domain ? null : <>
                         <h4>Install <code>index.html</code> in bucket</h4>
                         <p>You can also install this <code>index.html</code> in the bucket <code>{bucket}</code>, and visit it directly:</p>
                         <CodeBlock>{`aws s3 cp s3://s3idx/index.html s3://${bucket}/index.html --content-type="text/html; charset=utf-8" --acl public-read`}</CodeBlock>
@@ -455,7 +418,7 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
                     {
                         ancestors.map(({ key, name }) => {
                             const path = `${bucket}/${key}`
-                            const url = bucketUrlRoot ? `/${bucket}/${key}` : (pathPrefix ? `/${stripPrefix(pathPrefix.split('/'), key)}` :`/${key}`)
+                            const url = bucketUrlRoot ? `/${bucket}/${key}` : (urlPathPrefix ? `/${stripPrefix(urlPathPrefix.split('/'), key)}` :`/${key}`)
                             return <li key={path}>
                                 <Link to={url}>{name}</Link>
                             </li>
@@ -467,7 +430,7 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
                 <FilesList {...{
                     rows,
                     bucket, keyPieces,
-                    bucketUrlRoot, pathPrefix,
+                    bucketUrlRoot, urlPathPrefix,
                     ancestors,
                     sizeFmt, setSizeFmt,
                     datetimeFmt, setDatetimeFmt,
@@ -475,7 +438,8 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
                     totalSize, LastModified, timestamp,
                     duration,
                     fetchedFmt,
-                    credentials, endpoint, s3BucketEndpoint,
+                    credentials,
+                    endpoint,
                 }} />
             </DivRow>
             <PaginationRow {...{ state: paginationState, start, end, }}/>

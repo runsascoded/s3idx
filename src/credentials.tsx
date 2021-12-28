@@ -4,6 +4,7 @@ import styled from "styled-components";
 import { Set } from "./utils"
 import {tooltipClasses} from "@mui/material/Tooltip";
 import { Props as TooltipProps } from "./tooltip"
+import {URLMetadata} from "./s3/location";
 
 // Credentials
 
@@ -39,8 +40,8 @@ const AuthLabel = styled.span`
 
 export interface Props {
     region?: string, setRegion: Set<string | undefined>
-    groups: { bucket?: string }  // TODO
-    awsDomain: boolean
+    urlMetadata: URLMetadata
+    isS3Domain: boolean
     accessKeyId: string | null, setAccessKeyId: Set<string | null>
     secretAccessKey: string | null, setSecretAccessKey: Set<string | null>
     setNeedsAuth: Set<boolean>
@@ -49,8 +50,8 @@ export interface Props {
 export const Credentials = (
     {
         region, setRegion,
-        groups,
-        awsDomain,
+        urlMetadata,
+        isS3Domain,
         accessKeyId, setAccessKeyId,
         secretAccessKey, setSecretAccessKey,
         setNeedsAuth,
@@ -82,7 +83,7 @@ export const Credentials = (
                         <input
                             className="credential"
                             type="text"
-                            disabled={awsDomain && !groups.bucket}
+                            disabled={isS3Domain && !urlMetadata.bucket}
                             placeholder="Access key"
                             defaultValue={accessKeyId || ''}
                             ref={inputAccessKey}
@@ -95,7 +96,7 @@ export const Credentials = (
                         <input
                             className="credential"
                             type="password"
-                            disabled={awsDomain && !groups.bucket}
+                            disabled={isS3Domain && !urlMetadata.bucket}
                             placeholder="Secret key"
                             defaultValue={secretAccessKey || ''}
                             ref={inputSecretKey}
