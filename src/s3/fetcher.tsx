@@ -165,7 +165,7 @@ export class Fetcher {
         } else if (credentials) {
             AWS.config.credentials = credentials
         }
-        AWS.config.s3BucketEndpoint = s3BucketEndpoint
+        AWS.config.s3BucketEndpoint = this.s3BucketEndpoint
         this.s3 = new AWS.S3({ endpoint });
         const cacheKeyObj = key ? { bucket, key } : { bucket }
         this.cacheKey = JSON.stringify(cacheKeyObj)
