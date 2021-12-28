@@ -1,7 +1,9 @@
-import {Button, DivRow} from "./style";
-import React, {useRef} from "react";
+import {Button, DivRow, SettingsLabel} from "./style";
+import React, {FC, useRef} from "react";
 import styled from "styled-components";
 import { Set } from "./utils"
+import {tooltipClasses} from "@mui/material/Tooltip";
+import { Props as TooltipProps } from "./tooltip"
 
 // Credentials
 
@@ -30,7 +32,12 @@ const UpdateCredentials = styled(Button)`
     padding: 0.3em 0.7em;
 `
 
-interface Props {
+const AuthLabel = styled.span`
+    ${SettingsLabel}
+    font-size: 2.2em;
+`
+
+export interface Props {
     region?: string, setRegion: Set<string | undefined>
     groups: { bucket?: string }  // TODO
     awsDomain: boolean
@@ -117,6 +124,29 @@ export const Credentials = (
                 </UpdateCredentials>
             </DivRow>
         </Div>
+    )
+}
+
+export const AuthSettings = (
+    { Credentials, Tooltip, }: {
+        Credentials: () => JSX.Element
+        Tooltip: FC<TooltipProps>
+    }
+) => {
+    return (
+        <Tooltip
+            id={"auth"}
+            placement={"bottom"}
+            css={{
+                [`& .${tooltipClasses.tooltip}`]: {
+                    maxWidth: '30em',
+                    padding: '0.8rem',
+                },
+            }}
+            title={<div>{Credentials()}</div>}
+        >
+            <AuthLabel>🔒</AuthLabel>
+        </Tooltip>
     )
 }
 

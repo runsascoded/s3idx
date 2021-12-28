@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useMemo, useRef, useState,} from "react";
+import React, {FC, useCallback, useEffect, useMemo, useRef, useState,} from "react";
 import moment from 'moment'
 import {Link, useNavigate, useParams} from "react-router-dom";
 import useEventListener from "@use-it/event-listener";
@@ -19,8 +19,8 @@ import {center, makeTooltip} from "./tooltip";
 import {tooltipClasses} from "@mui/material/Tooltip";
 import {FilesList,} from './files-list';
 import {PaginationRow, toPageIdxStr} from "./pagination";
-import {Button, CodeBlock, DivRow} from "./style";
-import {default as CredentialsFC} from "./credentials";
+import {Button, CodeBlock, DivRow, SettingsLabel} from "./style";
+import {default as CredentialsFC, AuthSettings, Props as CredentialsProps } from "./credentials";
 
 // Container / Row styles
 
@@ -109,18 +109,6 @@ const Hotkeys = styled.div`
         padding-right: 0.5em;
     }
 `
-const SettingsLabel = css`
-    font-size: 2em;
-    cursor: pointer;
-    user-select: none;
-    padding: 0;
-    margin: auto 0.1em;
-    line-height: 1em;
-`
-const AuthLabel = styled.span`
-    ${SettingsLabel}
-    font-size: 2.2em;
-`
 const HotKey = styled.code`
     font-size: 1.2em;
 `
@@ -202,7 +190,7 @@ export function S3Tree(
     const navigate = useNavigate()
 
     const [ datetimeFmt, setDatetimeFmt ] = useDatetimeFmt<DatetimeFmt>(config.datetimeFmt)
-    const [ fetchedFmt, ] = useFetchedFmt<DatetimeFmt>(config.fetchedFmt)
+    const [ fetchedFmt, setFetchedFmt ] = useFetchedFmt<DatetimeFmt>(config.fetchedFmt)
     const [ sizeFmt, setSizeFmt ] = useSizeFmt<SizeFmt>(config.sizeFmt)
 
     const path = (params['*'] || '').replace(/\/$/, '').replace(/^\//, '')
@@ -386,14 +374,14 @@ export function S3Tree(
     const Tooltip = makeTooltip()
 
     const start = pageSize * pageIdx
-    const end = start + pageSize
+    const maxEnd = start + pageSize
 
     useEffect(
         () => {
             if (needsCors || needsAuth) return
             console.log("Effect: rows")
             fetcher
-                .get(start, end)
+                .get(start, maxEnd)
                 .then(setRows, handleRequestError)
         },
         [ fetcher, pageIdx, pageSize, bucket, key, ]
@@ -413,7 +401,7 @@ export function S3Tree(
         [ fetcher, bucket, key, eagerMetadata, ]
     )
 
-    function Credentials() {
+    function Credentials(): JSX.Element {
         return <CredentialsFC {...{
             region, setRegion,
             groups,
@@ -482,6 +470,8 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
         )
     }
 
+    const end = start + rows.length
+
     const ancestors =
         ([] as string[])
             .concat(keyPieces)
@@ -537,7 +527,7 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
                 pageSize, setPageSize,
                 numPages,
                 cantPrv, cantNxt,
-                start, end: start + rows.length,
+                start, end,
                 numChildren
             }}/>
             <CacheRow>
@@ -583,19 +573,7 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
                         <GithubIssuesLink />
                     </GithubLabel>
                 </Tooltip>
-                <Tooltip
-                    id={"auth"}
-                    placement={"bottom"}
-                    css={{
-                        [`& .${tooltipClasses.tooltip}`]: {
-                            maxWidth: '30em',
-                            padding: '0.8rem',
-                        },
-                    }}
-                    title={<div>{Credentials()}</div>}
-                >
-                    <AuthLabel>🔒</AuthLabel>
-                </Tooltip>
+                <AuthSettings {...{ Credentials, Tooltip, }} />
                 <Tooltip id={"hotkeys"} placement={"right"} title={
                     <Hotkeys>
                         <div className={"hotkeys-header"}>Hotkeys:</div>

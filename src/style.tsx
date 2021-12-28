@@ -18,3 +18,12 @@ export const Button = styled.button`
     cursor: pointer;
     box-sizing: border-box;
 `
+
+export const SettingsLabel = css`
+    font-size: 2em;
+    cursor: pointer;
+    user-select: none;
+    padding: 0;
+    margin: auto 0.1em;
+    line-height: 1em;
+`
