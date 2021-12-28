@@ -174,12 +174,9 @@ TODO: make these GitHub issues
 - [ ] searchable columns
 - [ ] add toggling for pagination params in URL
 - [ ] allow switching buckets in non-AWS-hosted mode
-- [ ] hide pagination controls when < 1 page
 
 ### UI
-- [ ] "Recurse" checkbox can wrap weirdly
 - [ ] GitHub link tooltip causes brief page stutter to the right
-- [ ] move `numChildren` down with pagination controls
 - [ ] add `numDescendants`
 - [ ] add "don't show again" to EDU tooltips
 - [ ] react-router redirect for auth/cors errors
@@ -192,7 +189,6 @@ TODO: make these GitHub issues
 
 ### Global Configs
 - [ ] global configs in "⚙️" tooltip
-- [ ] configurable region/credentials, "🔒"
 
 ### S3 API
 - [ ] look up buckets' region, CORS policy
@@ -204,7 +200,7 @@ TODO: make these GitHub issues
 - [ ] configure default/max number of pages to fetch on initial load / subsequent loads
 
 ### Deployment
-- [ ] audit/reduce bundle size; add tree-shaking
+- [ ] audit/reduce bundle size
 - [ ] DEP0005 deprecation warning during `npm run build`
 - [ ] build prod/dev releases as different files under `dist/`
 - [ ] support mode with `<link/>`/`<script/>` tags, to reduce initial bundle size
