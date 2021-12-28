@@ -4,8 +4,6 @@ import {Link, useNavigate, useParams} from "react-router-dom";
 import useEventListener from "@use-it/event-listener";
 import {Fetcher, parseDuration, Row} from "./s3/fetcher";
 import {SizeFmt} from "./size";
-import {useQueryParam} from "use-query-params";
-import {intParam, stringParam} from "./search-params"
 import createPersistedState from "use-persisted-state";
 import styled from "styled-components"
 import {Breadcrumb as BootstrapBreadcrumb, Container as BootstrapContainer,} from "react-bootstrap";
@@ -17,7 +15,7 @@ import {GithubIssuesLink, issuesUrl} from "./github-link";
 import {CredentialsOptions} from "aws-sdk/lib/credentials";
 import {makeTooltip} from "./tooltip";
 import {FilesList,} from './files-list';
-import {PaginationRow, toPageIdxStr} from "./pagination";
+import {makePagination, PaginationRow, toPageIdxStr} from "./pagination";
 import {Button, CodeBlock, DivRow, SettingsLabel} from "./style";
 import {AuthSettings, default as CredentialsFC} from "./credentials";
 
@@ -120,11 +118,6 @@ const GithubLabel = styled.span`
     font-size: 1em;
 `
 
-const { ceil, max } = Math
-
-const usePageIdx = createPersistedState('pageIdx')
-const usePageSize = createPersistedState('pageSize')
-const usePaginationInfoInURL = createPersistedState('paginationInfoInURL')
 const useEagerMetadata = createPersistedState('eagerMetadata')
 const useDatetimeFmt = createPersistedState('datetimeFmt')
 const useFetchedFmt = createPersistedState('fetchedFmt')
@@ -298,52 +291,14 @@ export function S3Tree(
     const timestamp = fetcher.cache?.timestamp
     // console.log("Metadata:", metadata, "cache:", fetcher.cache)
 
-    const [ paginationInfoInURL, ] = usePaginationInfoInURL(config.paginationInfoInURL)
-    const [ pageSize, setPageSize ] = paginationInfoInURL ?
-        useQueryParam('s', intParam(config.pageSize)) :
-        usePageSize<number>(config.pageSize)
-    const numPages = numChildren === undefined ? undefined : max(1, ceil(numChildren / pageSize))
-
-    const [ pageIdxStr, setPageIdxStr ] = paginationInfoInURL ?
-        useQueryParam('p', stringParam('1')) :
-        usePageIdx('1')
-    let pageIdx = parseInt(pageIdxStr)
-    if (pageIdx > 0) pageIdx -= 1
-    let callSetPageIdx: number | undefined
-    if (isNaN(pageIdx)) {
-        pageIdx = 0
-    }
-    if (pageIdx < 0) {
-        if (numPages === undefined) {
-            console.log(`Negative page index ${pageIdx}, but don't know numPages yet`)
-            pageIdx = 0
-        } else {
-            if (pageIdx < -numPages) {
-                pageIdx = 0
-                callSetPageIdx = pageIdx
-            } else {
-                pageIdx = numPages + pageIdx
-            }
-            console.log(`Mapped negative page index ${pageIdxStr} to ${pageIdx}`)
-        }
-    }
-    if (numPages !== undefined && pageIdx >= numPages) {
-        pageIdx = numPages - 1
-        callSetPageIdx = pageIdx
-    }
-
-    useEffect(
-        () => {
-            if (callSetPageIdx !== undefined) {
-                setPageIdxStr(toPageIdxStr(callSetPageIdx))
-            }
-        },
-        [ callSetPageIdx, ]
-    )
-    // console.log(`** Initializing, bucket ${bucket} key ${key}, page ${pageIdx}/${numPages} ⨉ ${pageSize}`)
-
-    const cantPrv = pageIdx == 0
-    const cantNxt = numPages === undefined || pageIdx + 1 == numPages
+    const paginationState = makePagination({ numChildren, config, })
+    const {
+        pageIdx,
+        setPageIdxStr,
+        pageSize,
+        numPages,
+        cantPrv, cantNxt,
+    } = paginationState
 
     // Key events
 
@@ -373,6 +328,7 @@ export function S3Tree(
     const start = pageSize * pageIdx
     const maxEnd = start + pageSize
 
+    // Effect: fetch rows
     useEffect(
         () => {
             if (needsCors || needsAuth) return
@@ -386,6 +342,7 @@ export function S3Tree(
 
     const [ eagerMetadata, setEagerMetadata ] = useEagerMetadata(false)
 
+    // Effect: (maybe) compute metadata
     useEffect(
         () => {
             console.log(`Effect: compute metadata? (${eagerMetadata})`)
@@ -521,14 +478,7 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
                     credentials, endpoint, s3BucketEndpoint,
                 }} />
             </DivRow>
-            <PaginationRow {...{
-                pageIdx, pageIdxStr, setPageIdxStr,
-                pageSize, setPageSize,
-                numPages,
-                cantPrv, cantNxt,
-                start, end,
-                numChildren
-            }}/>
+            <PaginationRow {...{ state: paginationState, start, end, }}/>
             <CacheRow>
                 <CacheContainer>
                     <Tooltip id={"cache-ttl"} center placement={"bottom"} title={"Length of time to keep cached S3 info before purging/refreshing"}>
