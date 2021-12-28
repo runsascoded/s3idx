@@ -2,7 +2,7 @@
 Amazon S3 bucket browser in a single `index.html` file
 
 - [Usage](#usage)
-- [Examples](#examples)
+- [Example](#examples)
 - [Implementation Notes](#implementation)
   - [Caching](#caching)
   - [Configuration](#configuration)
@@ -10,11 +10,14 @@ Amazon S3 bucket browser in a single `index.html` file
   - [Local development](#local-development)
   - [S3 websites](#s3-websites)
 - [Security](#security)
-- [Roadmap](#roadmap)
+- [Discussion](#discussion)
+
+See [Issues](https://github.com/runsascoded/s3idx/issues) for a roadmap (of sorts).
 
 ## Usage <a id="usage"></a>
 Copy `s3://s3idx/index.html` to any public S3 bucket:
 ```bash
+bucket=<YOUR BUCKET>
 aws s3 cp s3://s3idx/index.html s3://$bucket/ \
   --content-type="text/html; charset=utf-8" \
   --acl public-read
@@ -25,7 +28,7 @@ Browse `$bucket` interactively:
 open https://$bucket.s3.amazonaws.com/index.html
 ```
 
-## Examples <a id="examples"></a>
+## Example <a id="examples"></a>
 Here's `index.html` in action in the `ctbk` bucket, [ctbk.s3.amazonaws.com/index.html](https://ctbk.s3.amazonaws.com/index.html):
 
 ![](ctbk.gif)
@@ -156,56 +159,18 @@ So, a private bucket with a dot (`.`) in the name is a bit stuck:
 
 To mitigate this, the access/secret key input fields are disabled on bucket-path endpoints.
 
-## Roadmap / Feature wishlist <a id="roadmap"></a>
-TODO: make these GitHub issues
+## Discussion <a id="discussion"></a>
+I've never had a way to see my stuff in S3 that I was satisfied with. If you do, please let me know.
 
-### Caching
-- [ ] implement recursive fetch mode (using `Prefix`-less ListObjectsV2)
-- [ ] alternative cache in `sql.js`
-- [ ] propagate cache evictions up the directory tree
-- [ ] display remaining TTL for objects/pages
-- [ ] toggle auto-eviction vs. UI warning/highlighting stale info
-- [ ] file sizes not re-rendered as cleared after cache clear
+### Prior art <a id="prior-art"></a>
+Here are some ways to access S3 I've tried to use for ad hoc browsing:
 
-### Table listing
-- [ ] toggle showing/hiding columns
-- [ ] render uncomputed values as links that trigger computation
-- [ ] sortable columns
-- [ ] searchable columns
-- [ ] add toggling for pagination params in URL
-- [ ] allow switching buckets in non-AWS-hosted mode
+1. **REST API in browser**: easy way to get lots of XML back ([example](https://ctbk.s3.amazonaws.com/), [screenshot](https://p199.p4.n0.cdn.getcloudapp.com/items/7KuqdvGz/6d5accf5-c2e1-4728-b149-6da2f7fb20de.png?v=5bfdb637af967b5fd02af61df553ca9f)), but not human-friendly.
+2. **AWS console S3 page**: has a table with lots of functionality, but hard to get to, a bit clunky, and has lots of admin stuff taking screen real estate.
+3. **[AWS CLI](https://aws.amazon.com/cli/)**: often looks like `aws s3 ls --recursive s3://<bucket> > <bucket>.txt` then lots of `sort`/`grep`/`column`/`head`/`tail`.
+4. **Jupyter/Boto3/Pandas**: dump boto3 responses into `pd.DataFrame`, powerful setup for downstream viz/analysis, but fairly heavyweight, forces a context switch away from whatever you wanted to see about the S3 bucket, and ultimately I don't have a good "interactive table inside Jupyter" story.
+5. Misc desktop FTP clients. I haven't tried this approach in a while, I'm sure there's good functionality out there, but a separate desktop app for this feels awkward.
+6. **[s3fs](https://github.com/s3fs-fuse/s3fs-fuse) (+ macOS Finder / Terminal)**: `s3fs` is incredible when it works (which has increased noticeably over the years, IME! 🙏), and [the file/`stat` caching](https://github.com/s3fs-fuse/s3fs-fuse/wiki/Fuse-Over-Amazon#use_cache-default-which-means-disabled) should make it possible for it to be a really snappy way to browse S3. I've observed the cache to not work as well as I'd hoped (very possibly a misconfiguration on my part), and [last time I tried it did not seem install-able on my 2021 Macbook Air](https://github.com/s3fs-fuse/s3fs-fuse/issues/1632#issuecomment-833036048).
+7. **"`index.html` browser" from `tripdata` bucket**: Citibike's public data bucket has an "app" that is the inspiration for this repo:*http://tripdata.s3.amazonaws.com/index.html. The license implies [Francesco Pasqualini](https://github.com/francescopasqualini-nf) first made it in 2008! It is small+fast and a really cool idea, but could use some more features (pagination, directory/"prefix"-awareness, etc.). [caussourd/aws-s3-bucket-listing](https://github.com/caussourd/aws-s3-bucket-listing) seems to be the most popular GitHub repo containing it.
 
-### UI
-- [ ] GitHub link tooltip causes brief page stutter to the right
-- [ ] add `numDescendants`
-- [ ] add "don't show again" to EDU tooltips
-- [ ] react-router redirect for auth/cors errors
-- [ ] bucket-switcher
-
-#### Mobile site
-- [ ] hide hotkeys
-- [ ] swipe to navigate pages
-- [ ] hamburger menu settings "☰"
-
-### Global Configs
-- [ ] global configs in "⚙️" tooltip
-
-### S3 API
-- [ ] look up buckets' region, CORS policy
-- [ ] create Lambda that compiles `index.html` with various default configs set (or e.g. `sql.js` mode)
-- [ ] support deploying to a subdirectory within a bucket
-- [ ] configurable S3 endpoint
-- [ ] support blob download
-- [ ] support click-to-copy paths to clipboard
-- [ ] configure default/max number of pages to fetch on initial load / subsequent loads
-
-### Deployment
-- [ ] audit/reduce bundle size
-- [ ] DEP0005 deprecation warning during `npm run build`
-- [ ] build prod/dev releases as different files under `dist/`
-- [ ] support mode with `<link/>`/`<script/>` tags, to reduce initial bundle size
-
-### Misc
-- [ ] treemap view
-- [ ] better/structured logging
-- [ ] source documentation
+With all that said, I'm still missing a fast + featureful way to see stuff in S3. "Mimic the `tripdata/index.html` model, but with some extra features" seems like the quickest way there, so that's what I'm working on here. It's also an exercise in (re)learning frontend/React/Typescript/[Jamstack](https://jamstack.org/why-jamstack/)/etc.
