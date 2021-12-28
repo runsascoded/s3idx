@@ -3,6 +3,7 @@ import {useEffect} from "react";
 import createPersistedState from "use-persisted-state";
 import * as utils from "../utils"
 import {UseBucketState} from "../config";
+import {stripPrefix} from "../utils";
 
 export type URLMetadata = { bucket?: string, region?: string }
 
@@ -25,7 +26,8 @@ export type State = {
     bucketUrlRoot: boolean
     useBucketState: UseBucketState
     ancestors: Ancestor[]
-    params: Params<string>
+    params: Params
+    keyUrl: (key: string) => string
 }
 
 export function parseS3LocationInfo(): S3LocationInfo {
@@ -126,6 +128,16 @@ export function useS3Location(s3LocationInfo?: S3LocationInfo): State {
                 [ { key: '', name: bucket }, ],
             )
 
+    function keyUrl(key: string) {
+        return bucketUrlRoot
+            ? `/${bucket}/${key}`
+            : (
+                urlPathPrefix
+                    ? `/${stripPrefix(urlPathPrefix.split('/'), key)}`
+                    : `/${key}`
+            )
+    }
+
     return {
         bucket,
         endpoint,
@@ -135,5 +147,6 @@ export function useS3Location(s3LocationInfo?: S3LocationInfo): State {
         useBucketState,
         ancestors,
         params,
+        keyUrl,
     }
 }

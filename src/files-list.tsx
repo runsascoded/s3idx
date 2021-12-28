@@ -56,16 +56,15 @@ function renderSize(size: number | undefined, fmt: SizeFmt) {
 
 function DirRow(
     { Prefix: key }: Dir,
-    { bucket, bucketUrlRoot, urlPathPrefix, duration, datetimeFmt, fetchedFmt, sizeFmt, credentials, endpoint, }: {
+    { bucket, duration, datetimeFmt, fetchedFmt, sizeFmt, credentials, endpoint, keyUrl, }: {
         bucket: string,
-        bucketUrlRoot: boolean,
         duration: Duration,
         datetimeFmt: DatetimeFmt,
         fetchedFmt: DatetimeFmt,
         sizeFmt: SizeFmt,
         credentials?: CredentialsOptions,
         endpoint?: string,
-        urlPathPrefix?: string,
+        keyUrl: (key: string) => string
     },
 ) {
     const pieces = key.split('/')
@@ -79,7 +78,7 @@ function DirRow(
     const totalSize = fetcher.cache?.totalSize
     const mtime = fetcher.cache?.LastModified
     const timestamp = fetcher.cache?.timestamp
-    const url = bucketUrlRoot ? `/${bucket}/${key}` : (urlPathPrefix ? `/${stripPrefix(urlPathPrefix.split('/'), key)}` :`/${key}`)
+    const url = keyUrl(key)
     return <tr key={key}>
         <td key="name">
             <Link to={url}>{name}</Link>
@@ -111,17 +110,16 @@ function FileRow(
 function TableRow(
     row: Row,
     extra: {
-        bucket: string,
-        bucketUrlRoot: boolean,
-        duration: Duration,
-        prefix: string[],
-        urlPathPrefix?: string,
-        datetimeFmt: DatetimeFmt,
-        fetchedFmt: DatetimeFmt,
-        sizeFmt: SizeFmt,
-        credentials?: CredentialsOptions,
-        endpoint?: string,
-        timestamp?: Moment,
+        bucket: string
+        duration: Duration
+        prefix: string[]
+        datetimeFmt: DatetimeFmt
+        fetchedFmt: DatetimeFmt
+        sizeFmt: SizeFmt
+        credentials?: CredentialsOptions
+        endpoint?: string
+        timestamp?: Moment
+        keyUrl: (key: string) => string
     }
 ) {
     return (
@@ -135,7 +133,6 @@ namespace ns {
     export interface Props {
         rows: Row[],
         bucket: string, keyPieces: string[],
-        bucketUrlRoot: boolean, urlPathPrefix?: string,
         ancestors: { key: string, name: string }[],
         sizeFmt: SizeFmt, setSizeFmt: Set<SizeFmt>,
         datetimeFmt: DatetimeFmt, setDatetimeFmt: Set<DatetimeFmt>,
@@ -147,13 +144,13 @@ namespace ns {
         fetchedFmt: DatetimeFmt,
         credentials?: CredentialsOptions,
         endpoint: string,
+        keyUrl: (key: string) => string
     }
 
     export const FilesList = (
         {
             rows,
             bucket, keyPieces,
-            bucketUrlRoot, urlPathPrefix,
             ancestors,
             sizeFmt, setSizeFmt,
             datetimeFmt, setDatetimeFmt,
@@ -162,6 +159,7 @@ namespace ns {
             duration,
             fetchedFmt,
             credentials, endpoint,
+            keyUrl,
         }: Props
     ) => {
 
@@ -219,7 +217,7 @@ namespace ns {
                         {
                             ancestors.map(({ key, name }) => {
                                 const path = `${bucket}/${key}`
-                                const url = bucketUrlRoot ? `/${bucket}/${key}` : (urlPathPrefix ? `/${stripPrefix(urlPathPrefix.split('/'), key)}` :`/${key}`)
+                                const url = keyUrl(key)
                                 return <InlineBreadcrumb key={path}>
                                     <Link to={url}>{name}</Link>
                                 </InlineBreadcrumb>
@@ -245,8 +243,6 @@ namespace ns {
                             {
                                 bucket,
                                 prefix: keyPieces,
-                                bucketUrlRoot,
-                                urlPathPrefix,
                                 duration,
                                 datetimeFmt,
                                 fetchedFmt,
@@ -254,6 +250,7 @@ namespace ns {
                                 credentials,
                                 endpoint,
                                 timestamp,
+                                keyUrl,
                             }
                         )
                     )

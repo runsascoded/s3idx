@@ -8,7 +8,6 @@ import styled from "styled-components"
 import {Breadcrumb as BootstrapBreadcrumb,} from "react-bootstrap";
 import {ThemeProvider} from "@mui/material"
 import theme from "./theme";
-import {stripPrefix} from "./utils";
 import {GithubIssuesLink} from "./github-link";
 import {makeTooltip} from "./tooltip";
 import {FilesList,} from './files-list';
@@ -131,6 +130,8 @@ export function S3Tree(
         }
     }
 
+    const { isS3Domain, urlMetadata, urlPathPrefix, } = s3LocationInfo
+
     const {
         bucket,
         endpoint,
@@ -140,6 +141,7 @@ export function S3Tree(
         useBucketState,
         ancestors,
         params,
+        keyUrl,
     } = useS3Location(s3LocationInfo)
 
     const navigate = useNavigate()
@@ -155,8 +157,6 @@ export function S3Tree(
     const [ s3PageSize, ] = useState(config.s3PageSize)  // TODO
 
     // Credentials
-
-    const { isS3Domain, urlMetadata, urlPathPrefix, } = s3LocationInfo
 
     const credentialsState = useCredentials({ config, useBucketState, })
     const {
@@ -226,7 +226,7 @@ export function S3Tree(
             if (e.key == 'u') {
                 if (keyPieces.length) {
                     const newKey = keyPieces.slice(0, keyPieces.length - 1).join('/')
-                    const url = bucketUrlRoot ? `/${bucket}/${newKey}` : (urlPathPrefix ? `/${stripPrefix(urlPathPrefix.split('/'), newKey)}` :`/${newKey}`)
+                    const url = keyUrl(newKey)
                     console.log(`Navigating to ${url}`)
                     navigate(url)
                 }
@@ -326,7 +326,7 @@ export function S3Tree(
                     {
                         ancestors.map(({ key, name }) => {
                             const path = `${bucket}/${key}`
-                            const url = bucketUrlRoot ? `/${bucket}/${key}` : (urlPathPrefix ? `/${stripPrefix(urlPathPrefix.split('/'), key)}` :`/${key}`)
+                            const url = keyUrl(key)
                             return <li key={path}>
                                 <Link to={url}>{name}</Link>
                             </li>
@@ -348,6 +348,7 @@ export function S3Tree(
                     fetchedFmt,
                     credentials,
                     endpoint,
+                    keyUrl,
                 }} />
             </DivRow>
             <PaginationRow {...{ state: paginationState, start, end, }}/>
