@@ -3,7 +3,7 @@ import { tooltipClasses, } from "@mui/material/Tooltip"
 import { styled as muiStyled, } from "@mui/material/styles";
 import React, {FC, useCallback, useMemo, useState} from "react";
 import styled from "styled-components";
-import {Setter} from "./utils";
+import {Set} from "./utils";
 import useEventListener from "@use-it/event-listener";
 import {entries} from "lodash";
 
@@ -16,7 +16,7 @@ export type MakeTooltipProps = {
 // accessible from within the styling closure below. Is there a better / more idiomatic way to do this?
 export type LiftedState = {
     clicked: boolean
-    setClicked: Setter<boolean>
+    setClicked: Set<boolean>
 }
 export type CSS = { [k: string]: { [k: string]: string | number | undefined } }
 export type Props = mui.TooltipProps & { id: string, css?: CSS, clickToPin?: boolean }

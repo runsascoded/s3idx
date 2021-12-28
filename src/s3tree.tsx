@@ -8,11 +8,7 @@ import {useQueryParam} from "use-query-params";
 import {intParam, stringParam} from "./search-params"
 import createPersistedState from "use-persisted-state";
 import styled, {css} from "styled-components"
-import {
-    Breadcrumb as BootstrapBreadcrumb,
-    Container as BootstrapContainer,
-    Row as BootstrapRow,
-} from "react-bootstrap";
+import {Breadcrumb as BootstrapBreadcrumb, Container as BootstrapContainer,} from "react-bootstrap";
 import {ThemeProvider} from "@mui/material"
 import theme from "./theme";
 import {DatetimeFmt} from "./datetime";
@@ -21,7 +17,9 @@ import {GithubIssuesLink, issuesUrl} from "./github-link";
 import {CredentialsOptions} from "aws-sdk/lib/credentials";
 import {center, makeTooltip} from "./tooltip";
 import {tooltipClasses} from "@mui/material/Tooltip";
-import { FilesList, } from './files-list';
+import {FilesList,} from './files-list';
+import {PaginationRow, toPageIdxStr} from "./pagination";
+import {Button, CodeBlock, DivRow} from "./style";
 
 // Container / Row styles
 
@@ -44,17 +42,6 @@ const Container = styled(BootstrapContainer)`
         margin-top: 0.7em;
     }
 `
-const RowStyle = css`
-    padding 0 2rem;
-`
-const DivRow = styled(BootstrapRow)`
-    ${RowStyle}
-`
-const CodeBlock = styled.pre`
-    margin-left: 2em;
-    background: #f8f8f8;
-    padding: 0.6em 1.1em;
-`
 
 // Top / Metadata row
 
@@ -68,42 +55,6 @@ li+li:before {
     content: "/";
 }
 `
-
-// Pagination / Cache controls
-
-const PaginationRow = styled(DivRow)`
-    margin-top: 1em;
-    line-height: 1.2em;
-`
-const Button = styled.button`
-    padding: 0.2em 0.4em;
-    border: 1px solid #bbb;
-    cursor: pointer;
-    box-sizing: border-box;
-`
-const PaginationButton = styled(Button)`
-    margin-left: 0em;
-    margin-right: 0.2em;
-`
-const PageNumber = styled.span`
-    margin-left: 0.5em;
-    margin-right: 0.5em;
-`
-const GotoPage = styled.input`
-    width: 2.6em;
-    text-align: right;
-    padding: 0.2em 0;
-    border: 0;
-`
-const PageSizeSelect = styled.select`
-    padding: 0.2em 0.1em;
-    border: 0;
-`
-const NumChildrenContainer = styled.span`
-    margin-top: auto;
-    margin-bottom: auto;
-`
-const NumChildren = styled.span``
 
 // Cache/TTL row
 
@@ -144,7 +95,7 @@ const RecurseButton = styled(CacheButton)`
     padding: 0.2em 0.4em;
 `
 
-// GitHub/Auth/Hokeys row
+// GitHub/Auth/Hotkeys row
 
 const FooterRow = styled(DivRow)``
 const Hotkeys = styled.div`
@@ -208,22 +159,17 @@ const UpdateCredentials = styled(Button)`
     padding: 0.3em 0.7em;
 `
 
-const { ceil, floor, max, min } = Math
+const { ceil, max } = Math
 
 const usePageIdx = createPersistedState('pageIdx')
 const usePageSize = createPersistedState('pageSize')
 const usePaginationInfoInURL = createPersistedState('paginationInfoInURL')
-const useTtl = createPersistedState('ttl')
 const useEagerMetadata = createPersistedState('eagerMetadata')
 const useDatetimeFmt = createPersistedState('datetimeFmt')
 const useFetchedFmt = createPersistedState('fetchedFmt')
 const useSizeFmt = createPersistedState('sizeFmt')
 
 const h10 = moment.duration(10, 'h')
-
-function toPageIdxStr(idx: number) {
-    return (idx >= 0 ? (idx + 1) : idx).toString()
-}
 
 type S3IdxConfig = {
     datetimeFmt: DatetimeFmt
@@ -282,7 +228,7 @@ export function S3Tree(
     const navigate = useNavigate()
 
     const [ datetimeFmt, setDatetimeFmt ] = useDatetimeFmt<DatetimeFmt>(config.datetimeFmt)
-    const [ fetchedFmt, setFetchedFmt ] = useFetchedFmt<DatetimeFmt>(config.fetchedFmt)
+    const [ fetchedFmt, ] = useFetchedFmt<DatetimeFmt>(config.fetchedFmt)
     const [ sizeFmt, setSizeFmt ] = useSizeFmt<SizeFmt>(config.sizeFmt)
 
     const path = (params['*'] || '').replace(/\/$/, '').replace(/^\//, '')
@@ -334,7 +280,7 @@ export function S3Tree(
     }
 
     const [ rows, setRows ] = useState<Row[] | null>(null)
-    const [ s3PageSize, setS3PageSize ] = useState(config.s3PageSize)  // TODO
+    const [ s3PageSize, ] = useState(config.s3PageSize)  // TODO
 
     // Credentials
 
@@ -391,7 +337,7 @@ export function S3Tree(
     const timestamp = fetcher.cache?.timestamp
     // console.log("Metadata:", metadata, "cache:", fetcher.cache)
 
-    const [ paginationInfoInURL, setPaginationInfoInURL ] = usePaginationInfoInURL(config.paginationInfoInURL)
+    const [ paginationInfoInURL, ] = usePaginationInfoInURL(config.paginationInfoInURL)
     const [ pageSize, setPageSize ] = paginationInfoInURL ?
         useQueryParam('s', intParam(config.pageSize)) :
         usePageSize<number>(config.pageSize)
@@ -672,47 +618,14 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
                     credentials, endpoint, s3BucketEndpoint,
                 }} />
             </DivRow>
-            <PaginationRow>
-                {
-                    numPages !== 1
-                    && (
-                        <span className={"pgination-controls"}>
-                            <span className={"pagination-buttons"}>
-                                <PaginationButton onClick={() => setPageIdxStr(toPageIdxStr(0))} disabled={cantPrv}>{'<<'}</PaginationButton>{' '}
-                                <PaginationButton onClick={() => setPageIdxStr(toPageIdxStr(pageIdx - 1))} disabled={cantPrv}>{'<'}</PaginationButton>{' '}
-                                <PaginationButton onClick={() => setPageIdxStr(toPageIdxStr(pageIdx + 1))} disabled={cantNxt}>{'>'}</PaginationButton>{' '}
-                                <PaginationButton onClick={() => setPageIdxStr(toPageIdxStr((numPages || 0) - 1))} disabled={cantNxt}>{'>>'}</PaginationButton>{' '}
-                            </span>
-                        </span>
-                    )
-                }
-                <PageNumber>
-                    Page
-                    <GotoPage
-                        type="number"
-                        value={pageIdxStr}
-                        onChange={e => setPageIdxStr(e.target.value || '')}
-                    />
-                    <span>of {numPages === null ? '?' : numPages}</span>{' ⨉'}
-                    <PageSizeSelect
-                        value={pageSize}
-                        onChange={e => setPageSize(Number(e.target.value))}
-                    >
-                        {[10, 20, 50, 100].map(pageSize =>
-                                <option key={pageSize} value={pageSize}>{pageSize}</option>
-                        )}
-                    </PageSizeSelect>
-                </PageNumber>
-                {
-                    numChildren !== null &&
-                    <NumChildrenContainer>
-                        {' '}<span className={"control-separator"}>|</span>{' '}
-                        <NumChildren>
-                            Children {start + 1} – {start + rows.length} of {numChildren}
-                        </NumChildren>
-                    </NumChildrenContainer>
-                }
-            </PaginationRow>
+            <PaginationRow {...{
+                pageIdx, pageIdxStr, setPageIdxStr,
+                pageSize, setPageSize,
+                numPages,
+                cantPrv, cantNxt,
+                start, end: start + rows.length,
+                numChildren
+            }}/>
             <CacheRow>
                 <CacheContainer>
                     <Tooltip id={"cache-ttl"} css={center} placement={"bottom"} title={"Length of time to keep cached S3 info before purging/refreshing"}>
@@ -743,7 +656,7 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
                         "Recursively fetch subdirectories, compute total sizes / mtimes"
                     }>
                         <RecurseButton disabled={eagerMetadata}>
-                            <span onClick={e => setEagerMetadata(!eagerMetadata)}>
+                            <span onClick={() => setEagerMetadata(!eagerMetadata)}>
                                 Recurse
                             </span>
                         </RecurseButton>

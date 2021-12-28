@@ -1,6 +1,6 @@
 import styled from "styled-components";
 import {Header, HeaderSettings} from "./column/header";
-import {Setter as Set, stripPrefix} from "./utils";
+import {Set, stripPrefix} from "./utils";
 import {Link} from "react-router-dom";
 import {DatetimeFmt, renderDatetime} from "./datetime";
 import React, {FC} from "react";
