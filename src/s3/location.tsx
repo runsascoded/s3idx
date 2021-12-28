@@ -1,4 +1,4 @@
-import {useParams} from "react-router-dom";
+import {Params, useParams} from "react-router-dom";
 import {useEffect} from "react";
 import createPersistedState from "use-persisted-state";
 import * as utils from "../utils"
@@ -25,6 +25,7 @@ export type State = {
     bucketUrlRoot: boolean
     useBucketState: UseBucketState
     ancestors: Ancestor[]
+    params: Params<string>
 }
 
 export function parseS3LocationInfo(): S3LocationInfo {
@@ -133,5 +134,6 @@ export function useS3Location(s3LocationInfo?: S3LocationInfo): State {
         bucketUrlRoot,
         useBucketState,
         ancestors,
+        params,
     }
 }

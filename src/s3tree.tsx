@@ -1,30 +1,26 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState,} from "react";
 import moment from 'moment'
-import {Link, useNavigate, useParams} from "react-router-dom";
+import {Link, useNavigate} from "react-router-dom";
 import useEventListener from "@use-it/event-listener";
 import {Fetcher, parseDuration, Row} from "./s3/fetcher";
-import {SizeFmt} from "./size";
 import createPersistedState from "use-persisted-state";
 import styled from "styled-components"
-import {Breadcrumb as BootstrapBreadcrumb, Container as BootstrapContainer,} from "react-bootstrap";
+import {Breadcrumb as BootstrapBreadcrumb,} from "react-bootstrap";
 import {ThemeProvider} from "@mui/material"
 import theme from "./theme";
-import {DatetimeFmt} from "./datetime";
 import {stripPrefix} from "./utils";
-import {GithubIssuesLink, issuesUrl} from "./github-link";
-import {CredentialsOptions} from "aws-sdk/lib/credentials";
+import {GithubIssuesLink} from "./github-link";
 import {makeTooltip} from "./tooltip";
 import {FilesList,} from './files-list';
 import {makePagination, PaginationRow, toPageIdxStr} from "./pagination";
-import {Button, CodeBlock, Container, DivRow, SettingsLabel} from "./style";
+import {Button, Container, DivRow, SettingsLabel} from "./style";
 import {AuthSettings, default as CredentialsFC, useCredentials} from "./credentials";
 import {useQueryParam} from "use-query-params";
 import {boolParam} from "./search-params";
 import {S3LocationInfo, useS3Location} from "./s3/location";
 import {DefaultConfigs, S3IdxConfig} from "./config";
 import {CorsPage} from "./cors-page";
-
-// Container / Row styles
+import {useColumns} from "./columns";
 
 // Top / Metadata row
 
@@ -104,9 +100,6 @@ const GithubLabel = styled.span`
 `
 
 const useEagerMetadata = createPersistedState('eagerMetadata')
-const useDatetimeFmt = createPersistedState('datetimeFmt')
-const useFetchedFmt = createPersistedState('fetchedFmt')
-const useSizeFmt = createPersistedState('sizeFmt')
 
 const h10 = moment.duration(10, 'h')
 
@@ -146,14 +139,17 @@ export function S3Tree(
         bucketUrlRoot,
         useBucketState,
         ancestors,
+        params,
     } = useS3Location(s3LocationInfo)
 
-    const params = useParams()
     const navigate = useNavigate()
 
-    const [ datetimeFmt, setDatetimeFmt ] = useDatetimeFmt<DatetimeFmt>(config.datetimeFmt)
-    const [ fetchedFmt, setFetchedFmt ] = useFetchedFmt<DatetimeFmt>(config.fetchedFmt)
-    const [ sizeFmt, setSizeFmt ] = useSizeFmt<SizeFmt>(config.sizeFmt)
+    const columnsState = useColumns({config})
+    const {
+        datetimeFmt, setDatetimeFmt,
+        fetchedFmt, setFetchedFmt,
+        sizeFmt, setSizeFmt,
+    } = columnsState
 
     const [ rows, setRows ] = useState<Row[] | null>(null)
     const [ s3PageSize, ] = useState(config.s3PageSize)  // TODO
@@ -164,7 +160,7 @@ export function S3Tree(
 
     const credentialsState = useCredentials({ config, useBucketState, })
     const {
-        region, setRegion,
+        region,
         accessKeyId, setAccessKeyId,
         secretAccessKey, setSecretAccessKey,
         credentials,
