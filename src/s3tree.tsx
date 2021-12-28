@@ -20,6 +20,7 @@ import {tooltipClasses} from "@mui/material/Tooltip";
 import {FilesList,} from './files-list';
 import {PaginationRow, toPageIdxStr} from "./pagination";
 import {Button, CodeBlock, DivRow} from "./style";
+import {default as CredentialsFC} from "./credentials";
 
 // Container / Row styles
 
@@ -132,33 +133,6 @@ const GithubLabel = styled.span`
     font-size: 1em;
 `
 
-// Credentials
-
-const Credentials = styled.div`
-    table.credentials {
-        margin-bottom: 0.5em;
-    }
-    td:first-child {
-        padding-right: 0.4em;
-        text-align: right;
-    }
-    td {
-        padding-bottom: 0.2em;
-    }
-    input.credential {
-        padding: 0.3em 0.5em;
-        width: 20em;
-        border 1px solid black;
-    }
-    tr {
-        line-height: 1.2em;
-        /*margin-bottom: 0.2em;*/
-    }
-`
-const UpdateCredentials = styled(Button)`
-    padding: 0.3em 0.7em;
-`
-
 const { ceil, max } = Math
 
 const usePageIdx = createPersistedState('pageIdx')
@@ -245,7 +219,7 @@ export function S3Tree(
 
     const { host, hostname, } = window.location
     const rgx = /((?<bucket>.*)\.)?s3(-website)?(\.(?<region>[^.]+))?\.amazonaws\.com$/
-    const groups = hostname.match(rgx)?.groups
+    const groups = hostname.match(rgx)?.groups as { bucket?: string, region?: string }
     const awsDomain = !!groups
     if (!endpoint) {
         if (awsDomain) {
@@ -439,83 +413,23 @@ export function S3Tree(
         [ fetcher, bucket, key, eagerMetadata, ]
     )
 
-    const inputRegion = useRef<HTMLInputElement | null>(null)
-    const inputAccessKey = useRef<HTMLInputElement | null>(null)
-    const inputSecretKey = useRef<HTMLInputElement | null>(null)
-
-    // TODO: factor component
-    const credentialsEl = (
-        <Credentials>
-            <table className="credentials">
-                <tbody>
-                <tr>
-                    <td>Region:</td>
-                    <td>
-                        <input
-                            className="credential"
-                            type="text"
-                            placeholder="Region"
-                            defaultValue={region}
-                            ref={inputRegion}
-                        />
-                    </td>
-                </tr>
-                <tr>
-                    <td>Access key:</td>
-                    <td>
-                        <input
-                            className="credential"
-                            type="text"
-                            disabled={awsDomain && !groups.bucket}
-                            placeholder="Access key"
-                            defaultValue={accessKeyId || ''}
-                            ref={inputAccessKey}
-                        />
-                    </td>
-                </tr>
-                <tr>
-                    <td>Secret key:</td>
-                    <td>
-                        <input
-                            className="credential"
-                            type="password"
-                            disabled={awsDomain && !groups.bucket}
-                            placeholder="Secret key"
-                            defaultValue={secretAccessKey || ''}
-                            ref={inputSecretKey}
-                        />
-                    </td>
-                </tr>
-                </tbody>
-            </table>
-            <DivRow>
-                <UpdateCredentials onClick={() => {
-                    const region = inputRegion.current?.value
-                    const accessKey = inputAccessKey.current?.value
-                    const secretKey = inputSecretKey.current?.value
-                    console.log("Credentials:", region , accessKey, secretKey ? '*'.repeat(secretKey.length) : undefined)
-                    setRegion(region)
-                    if (accessKey) {
-                        setAccessKeyId(accessKey)
-                        setNeedsAuth(false)
-                    }
-                    if (secretKey) {
-                        setSecretAccessKey(secretKey)
-                        setNeedsAuth(false)
-                    }
-                }}>
-                    Update
-                </UpdateCredentials>
-            </DivRow>
-        </Credentials>
-    )
+    function Credentials() {
+        return <CredentialsFC {...{
+            region, setRegion,
+            groups,
+            awsDomain,
+            accessKeyId, setAccessKeyId,
+            secretAccessKey, setSecretAccessKey,
+            setNeedsAuth,
+        }} />
+    }
 
     const s3Url = `${endpoint}/index.html`
     if (needsAuth) {
         return (
             <Container>
                 <h2>Authentication error</h2>
-                {credentialsEl}
+                {Credentials()}
             </Container>
         )
     } else if (needsCors) {
@@ -530,7 +444,7 @@ export function S3Tree(
                 <p>If the info below doesn't help, feel free to <a href={issuesUrl}>file an issue</a> with info about
                     what you're seeing (output from JavaScript Console will be useful to include).</p>
                 <h3 id={"credentials"}>Authentication</h3>
-                {credentialsEl}
+                {Credentials()}
                 <h3 id={"CORS"}>Enable CORS on bucket</h3>
                 <p>Bash commands for enabling:</p>
                 <CodeBlock>{`cat >cors.json <<EOF
@@ -678,7 +592,7 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
                             padding: '0.8rem',
                         },
                     }}
-                    title={<div>{credentialsEl}</div>}
+                    title={<div>{Credentials()}</div>}
                 >
                     <AuthLabel>🔒</AuthLabel>
                 </Tooltip>
