@@ -1,6 +1,5 @@
 import {
     CommonPrefix,
-    LastModified,
     ListObjectsV2Output,
     ListObjectsV2Request,
     Object,
@@ -16,13 +15,13 @@ const { ceil, floor, max, min } = Math
 
 export type File = {
     Key: ObjectKey,
-    LastModified: LastModified,
+    LastModified: Moment,
     Size: Size,
 }
 
 export type Dir = {
     Prefix: string
-    LastModified?: LastModified | null
+    LastModified?: Moment | null
     Size?: Size
 }
 
@@ -43,14 +42,14 @@ export type Cache = {
     timestamp: Moment
     numChildren?: number
     totalSize?: number
-    LastModified?: LastModified | null
+    LastModified?: Moment | null
 }
 
 export function File({ Key, LastModified, Size, }: Object): File {
     if (Key === undefined || LastModified === undefined || Size === undefined) {
         throw Error(`Object missing required field(s): Key ${Key}, LastModified ${LastModified}, Size ${Size}`)
     }
-    return { Key, LastModified, Size, }
+    return { Key, LastModified: moment(LastModified), Size, }
 }
 
 export function Dir({ Prefix }: CommonPrefix): Dir {
@@ -63,7 +62,7 @@ export function Dir({ Prefix }: CommonPrefix): Dir {
 type Metadata = {
     numChildren: number
     totalSize: number
-    LastModified?: LastModified | null
+    LastModified?: Moment | null
 }
 
 const combineMetadata = (
@@ -166,7 +165,7 @@ export class Fetcher {
         } else if (credentials) {
             AWS.config.credentials = credentials
         }
-        AWS.config.s3BucketEndpoint = !!s3BucketEndpoint
+        AWS.config.s3BucketEndpoint = s3BucketEndpoint
         this.s3 = new AWS.S3({ endpoint });
         const cacheKeyObj = key ? { bucket, key } : { bucket }
         this.cacheKey = JSON.stringify(cacheKeyObj)
@@ -308,7 +307,7 @@ export class Fetcher {
     }
 
     getPage(pageIdx: number): Promise<ListObjectsV2Output> {
-        const { pagePromises, bucket, key, } = this
+        const { pagePromises, } = this
         // console.log(`Fetcher ${bucket} (${key}):`, cache)
         const cache = this.checkCacheTtl()
         if (cache) {
@@ -411,16 +410,16 @@ export class Fetcher {
         )
     }
 
-    fileMetadata(): Metadata | undefined {
-        const pages = this.cache?.pages
-        if (!pages) return
-        const files = ([] as File[]).concat(...pages.map(page => Page(page).files))
-        return (
-            files
-                .map(({ Size, LastModified, }) => { return { numChildren: 1, totalSize: Size, LastModified, }})
-                .reduce<Metadata>(combineMetadata, { totalSize: 0, numChildren: 0, })
-        )
-    }
+    // fileMetadata(): Metadata | undefined {
+    //     const pages = this.cache?.pages
+    //     if (!pages) return
+    //     const files = ([] as File[]).concat(...pages.map(page => Page(page).files))
+    //     return (
+    //         files
+    //             .map(({ Size, LastModified, }) => { return { numChildren: 1, totalSize: Size, LastModified: moment(LastModified), }})
+    //             .reduce<Metadata>(combineMetadata, { totalSize: 0, numChildren: 0, })
+    //     )
+    // }
 
     nextPage(): Promise<ListObjectsV2Output> {
         const { bucket, key, s3, pageSize, authenticated, } = this
@@ -470,14 +469,12 @@ export class Fetcher {
                 //     `Got page idx ${numPages} (${numItems} items, truncated ${truncated}, continuation ${page.NextContinuationToken})`
                 // )
                 let saveCache
-                let cache: Cache
                 if (!this.cache) {
                     let pages = []
                     pages[pageIdx] = page
                     this.cache = { pages, timestamp, }
                     // console.log("Fresh cache:", this.cache)
                     saveCache = true
-                    cache = this.cache
                 } else {
                     this.cache.pages[pageIdx] = page
                     // console.log(`Cache page idx ${pageIdx}:`, page)
@@ -486,7 +483,6 @@ export class Fetcher {
                         this.cache.timestamp = timestamp
                     }
                     saveCache = true
-                    cache = this.cache
                 }
                 if (!truncated) {
                     this.cache.numChildren = numPages * pageSize + numChildren

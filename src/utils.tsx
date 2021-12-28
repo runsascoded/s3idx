@@ -2,6 +2,7 @@ import React, {Dispatch, SetStateAction} from "react"
 import { isEqual } from "lodash";
 
 export type Setter<T> = Dispatch<SetStateAction<T>>
+export type State<T> = [T, Setter<T>]
 
 export const basename = function(path: string): string {
     const idx = path.lastIndexOf('/')

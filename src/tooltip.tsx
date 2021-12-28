@@ -176,3 +176,7 @@ export function makeTooltip(): FC<Props> {
 }
 
 export const center = {'&': { textAlign: 'center' }}
+
+export default {
+    makeTooltip, center
+}

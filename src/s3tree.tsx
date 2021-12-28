@@ -1,9 +1,9 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState,} from "react";
-import moment, {Duration, Moment} from 'moment'
+import moment from 'moment'
 import {Link, useNavigate, useParams} from "react-router-dom";
 import useEventListener from "@use-it/event-listener";
-import {Dir, File, parseDuration, Row, Fetcher} from "./s3/fetcher";
-import {SizeFmt, renderSize as szRenderSize} from "./size";
+import {Fetcher, parseDuration, Row} from "./s3/fetcher";
+import {SizeFmt} from "./size";
 import {useQueryParam} from "use-query-params";
 import {intParam, stringParam} from "./search-params"
 import createPersistedState from "use-persisted-state";
@@ -14,15 +14,14 @@ import {
     Row as BootstrapRow,
 } from "react-bootstrap";
 import {ThemeProvider} from "@mui/material"
-import {Option} from "./control/radios";
 import theme from "./theme";
-import {DatetimeFmt, renderDatetime} from "./datetime";
-import {Header, HeaderSettings} from "./column/header";
+import {DatetimeFmt} from "./datetime";
 import {stripPrefix} from "./utils";
 import {GithubIssuesLink, issuesUrl} from "./github-link";
 import {CredentialsOptions} from "aws-sdk/lib/credentials";
 import {center, makeTooltip} from "./tooltip";
 import {tooltipClasses} from "@mui/material/Tooltip";
+import { FilesList, } from './files-list';
 
 // Container / Row styles
 
@@ -69,44 +68,6 @@ li+li:before {
     content: "/";
 }
 `
-
-// Files table
-
-const FilesList = styled.table`
-    tr {
-        line-height: 1.6rem;
-    }
-    td,th {
-        text-align: right;
-        padding: 0 0.7rem;
-    }
-    td {
-        font-family: monospace;
-    }
-`
-
-// First table row ("total")
-
-const TotalRow = styled.tr`
-    /*border-top: 1px solid grey;*/
-    /*border-bottom: 1px solid grey;*/
-    font-weight: bold;
-    background-color: #f0f0f0;
-`
-const InlineBreadcrumbs = styled.span`
-    span+span:before {
-        padding: 0.2em;
-        color: black;
-        content: "/";
-    }
-    &:before {
-        padding: 0.2em;
-        color: black;
-        content: "s3://";
-    }
-`
-const InlineBreadcrumb = styled.span``
-
 
 // Pagination / Cache controls
 
@@ -249,86 +210,6 @@ const UpdateCredentials = styled(Button)`
 
 const { ceil, floor, max, min } = Math
 
-function DirRow(
-    { Prefix: key }: Dir,
-    { bucket, bucketUrlRoot, urlPrefix, duration, datetimeFmt, fetchedFmt, sizeFmt, credentials, endpoint, s3BucketEndpoint, }: {
-        bucket: string,
-        bucketUrlRoot: boolean,
-        duration: Duration,
-        datetimeFmt: DatetimeFmt,
-        fetchedFmt: DatetimeFmt,
-        sizeFmt: SizeFmt,
-        credentials?: CredentialsOptions,
-        endpoint?: string,
-        s3BucketEndpoint?: boolean,
-        urlPrefix?: string,
-    },
-) {
-    const pieces = key.split('/')
-    const name = pieces[pieces.length - 1]
-    const fetcher = new Fetcher({
-        bucket, key,
-        ttl: duration,
-        credentials,
-        endpoint,
-        s3BucketEndpoint,
-    })
-    const totalSize = fetcher.cache?.totalSize
-    const mtime = fetcher.cache?.LastModified
-    const timestamp = fetcher.cache?.timestamp
-    const url = bucketUrlRoot ? `/${bucket}/${key}` : (urlPrefix ? `/${stripPrefix(urlPrefix.split('/'), key)}` :`/${key}`)
-    return <tr key={key}>
-        <td key="name">
-            <Link to={url}>{name}</Link>
-        </td>
-        <td key="size">{renderSize(totalSize, sizeFmt)}</td>
-        <td key="mtime">{mtime ? renderDatetime(mtime, datetimeFmt) : '?'}</td>
-        <td key="fetched">{timestamp ? renderDatetime(timestamp, fetchedFmt) : '?'}</td>
-    </tr>
-}
-
-function FileRow(
-    { Key, LastModified, Size, }: File,
-    { prefix, datetimeFmt, fetchedFmt, sizeFmt, timestamp, }: {
-        prefix: string[],
-        datetimeFmt: DatetimeFmt,
-        fetchedFmt: DatetimeFmt,
-        sizeFmt: SizeFmt,
-        timestamp?: Moment,
-    }
-) {
-    return <tr key={Key}>
-        <td key="name">{Key ? stripPrefix(prefix, Key) : ""}</td>
-        <td key="size">{renderSize(Size, sizeFmt)}</td>
-        <td key="mtime">{renderDatetime(LastModified, datetimeFmt)}</td>
-        <td key="fetched">{timestamp ? renderDatetime(timestamp, fetchedFmt) : '?'}</td>
-    </tr>
-}
-
-function TableRow(
-    row: Row,
-    extra: {
-        bucket: string,
-        bucketUrlRoot: boolean,
-        duration: Duration,
-        prefix: string[],
-        urlPrefix?: string,
-        datetimeFmt: DatetimeFmt,
-        fetchedFmt: DatetimeFmt,
-        sizeFmt: SizeFmt,
-        credentials?: CredentialsOptions,
-        endpoint?: string,
-        s3BucketEndpoint?: boolean,
-        timestamp?: Moment,
-    }
-) {
-    return (
-        (row as Dir).Prefix !== undefined
-            ? DirRow(row as Dir, extra)
-            : FileRow(row as File, extra)
-    )
-}
-
 const usePageIdx = createPersistedState('pageIdx')
 const usePageSize = createPersistedState('pageSize')
 const usePaginationInfoInURL = createPersistedState('paginationInfoInURL')
@@ -342,12 +223,6 @@ const h10 = moment.duration(10, 'h')
 
 function toPageIdxStr(idx: number) {
     return (idx >= 0 ? (idx + 1) : idx).toString()
-}
-
-function renderSize(size: number | undefined, fmt: SizeFmt) {
-    return size !== undefined
-        ? szRenderSize({ size, fmt, short: fmt === 'iec', })
-        : '?'
 }
 
 type S3IdxConfig = {
@@ -466,7 +341,7 @@ export function S3Tree(
     const [ region, setRegion, ] = useBucketState('region', config.region)
     const [ accessKeyId, setAccessKeyId ] = useBucketState<string | null>('accessKeyId', null)
     const [ secretAccessKey, setSecretAccessKey ] = useBucketState<string | null>('secretAccessKey', null)
-    const credentials =
+    const credentials: CredentialsOptions | undefined =
         accessKeyId && secretAccessKey
             ? { accessKeyId, secretAccessKey }
             : undefined
@@ -766,27 +641,6 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
         setFetcherNonce({})
     }
 
-    const sizeHeaderSettings: HeaderSettings<SizeFmt> = {
-        options: [
-            { data: 'iec', label: 'Human Readable (IEC)', },
-            { data: 'iso', label: 'Human Readable (ISO)', },
-            { data: 'bytes', label: 'Bytes', },
-        ],
-        choice: sizeFmt,
-        cb: setSizeFmt,
-    }
-
-    const datetimeOptions: Option<DatetimeFmt>[] = [
-        { label: 'Relative', data: 'relative', },
-        { label: 'YYYY-MM-DD HH:mm:ss', data: 'YYYY-MM-DD HH:mm:ss', },
-        { label: 'YYYY-MM-DD', data: 'YYYY-MM-DD', }
-    ]
-    const datetimeHeaderSettings: HeaderSettings<DatetimeFmt> = {
-        options: datetimeOptions,
-        choice: datetimeFmt,
-        cb: setDatetimeFmt,
-    }
-
     return (
         <ThemeProvider theme={theme}>
         <Container>
@@ -804,80 +658,19 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
                 </Breadcrumbs>
             </HeaderRow>
             <DivRow>
-                <FilesList>
-                    <thead>
-                    <tr>
-                        <th key="name">Name</th>
-                        <th key="size">
-                            {Header({
-                                label: 'Size',
-                                headerSettings: sizeHeaderSettings,
-                                Tooltip,
-                            })}
-                        </th>
-                        <th key="mtime">
-                            {Header({
-                                label: 'Modified',
-                                headerSettings: datetimeHeaderSettings,
-                                Tooltip,
-                            })}
-                        </th>
-                        <th key="fetched">
-                            {Header({
-                                label: 'Fetched',
-                                Tooltip,
-                            })}
-                        </th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    <TotalRow>
-                        <td key="name"><InlineBreadcrumbs>
-                            {
-                                ancestors.map(({ key, name }) => {
-                                    const path = `${bucket}/${key}`
-                                    const url = bucketUrlRoot ? `/${bucket}/${key}` : (pathPrefix ? `/${stripPrefix(pathPrefix.split('/'), key)}` :`/${key}`)
-                                    return <InlineBreadcrumb key={path}>
-                                        <Link to={url}>{name}</Link>
-                                    </InlineBreadcrumb>
-                                })
-                            }
-                        </InlineBreadcrumbs></td>
-                        <td key="size">{renderSize(totalSize, sizeFmt)}</td>
-                        <td key="mtime">{
-                            LastModified
-                                ? renderDatetime(LastModified, datetimeFmt)
-                                : (LastModified === null ? '∅' : '?')
-                        }</td>
-                        <td>{
-                            timestamp
-                                ? renderDatetime(timestamp, fetchedFmt)
-                                : '?'
-                        }</td>
-                    </TotalRow>
-                    {
-                        rows.map(row =>
-                            TableRow(
-                                row,
-                                {
-                                    bucket,
-                                    prefix: keyPieces,
-                                    bucketUrlRoot,
-                                    urlPrefix: pathPrefix,
-                                    duration,
-                                    datetimeFmt,
-                                    fetchedFmt,
-                                    sizeFmt,
-                                    credentials,
-                                    endpoint,
-                                    s3BucketEndpoint,
-                                    timestamp,
-                                }
-                            )
-                        )
-                    }
-                    </tbody>
-                </FilesList>
+                <FilesList {...{
+                    rows,
+                    bucket, keyPieces,
+                    bucketUrlRoot, pathPrefix,
+                    ancestors,
+                    sizeFmt, setSizeFmt,
+                    datetimeFmt, setDatetimeFmt,
+                    Tooltip,
+                    totalSize, LastModified, timestamp,
+                    duration,
+                    fetchedFmt,
+                    credentials, endpoint, s3BucketEndpoint,
+                }} />
             </DivRow>
             <PaginationRow>
                 {
@@ -949,13 +742,11 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
                     <Tooltip id={"recurse"} clickToPin={false} css={center} placement={"bottom"} title={
                         "Recursively fetch subdirectories, compute total sizes / mtimes"
                     }>
-                        {/*<RecurseControl>*/}
-                            <RecurseButton disabled={eagerMetadata}>
-                                <span onClick={e => setEagerMetadata(!eagerMetadata)}>
-                                    Recurse
-                                </span>
-                            </RecurseButton>
-                        {/*</RecurseControl>*/}
+                        <RecurseButton disabled={eagerMetadata}>
+                            <span onClick={e => setEagerMetadata(!eagerMetadata)}>
+                                Recurse
+                            </span>
+                        </RecurseButton>
                     </Tooltip>
                 </CacheContainer>
             </CacheRow>
