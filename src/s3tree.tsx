@@ -1,4 +1,4 @@
-import React, {FC, useCallback, useEffect, useMemo, useRef, useState,} from "react";
+import React, {useCallback, useEffect, useMemo, useRef, useState,} from "react";
 import moment from 'moment'
 import {Link, useNavigate, useParams} from "react-router-dom";
 import useEventListener from "@use-it/event-listener";
@@ -7,7 +7,7 @@ import {SizeFmt} from "./size";
 import {useQueryParam} from "use-query-params";
 import {intParam, stringParam} from "./search-params"
 import createPersistedState from "use-persisted-state";
-import styled, {css} from "styled-components"
+import styled from "styled-components"
 import {Breadcrumb as BootstrapBreadcrumb, Container as BootstrapContainer,} from "react-bootstrap";
 import {ThemeProvider} from "@mui/material"
 import theme from "./theme";
@@ -15,12 +15,11 @@ import {DatetimeFmt} from "./datetime";
 import {stripPrefix} from "./utils";
 import {GithubIssuesLink, issuesUrl} from "./github-link";
 import {CredentialsOptions} from "aws-sdk/lib/credentials";
-import {center, makeTooltip} from "./tooltip";
-import {tooltipClasses} from "@mui/material/Tooltip";
+import {makeTooltip} from "./tooltip";
 import {FilesList,} from './files-list';
 import {PaginationRow, toPageIdxStr} from "./pagination";
 import {Button, CodeBlock, DivRow, SettingsLabel} from "./style";
-import {default as CredentialsFC, AuthSettings, Props as CredentialsProps } from "./credentials";
+import {AuthSettings, default as CredentialsFC} from "./credentials";
 
 // Container / Row styles
 
@@ -371,8 +370,6 @@ export function S3Tree(
     );
     useEventListener("keypress", keypressHandler);
 
-    const Tooltip = makeTooltip()
-
     const start = pageSize * pageIdx
     const maxEnd = start + pageSize
 
@@ -411,6 +408,8 @@ export function S3Tree(
             setNeedsAuth,
         }} />
     }
+
+    const Tooltip = makeTooltip()
 
     const s3Url = `${endpoint}/index.html`
     if (needsAuth) {
@@ -532,7 +531,7 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
             }}/>
             <CacheRow>
                 <CacheContainer>
-                    <Tooltip id={"cache-ttl"} css={center} placement={"bottom"} title={"Length of time to keep cached S3 info before purging/refreshing"}>
+                    <Tooltip id={"cache-ttl"} center placement={"bottom"} title={"Length of time to keep cached S3 info before purging/refreshing"}>
                         <TtlControl>
                             <label>Cache:</label>{' '}
                             TTL:
@@ -556,7 +555,7 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
                             <span className={"refresh-cache-label"}>♻</span>
                         ️</RefreshCacheButton>
                     </Tooltip>
-                    <Tooltip id={"recurse"} clickToPin={false} css={center} placement={"bottom"} title={
+                    <Tooltip id={"recurse"} clickToPin={false} center placement={"bottom"} title={
                         "Recursively fetch subdirectories, compute total sizes / mtimes"
                     }>
                         <RecurseButton disabled={eagerMetadata}>
@@ -568,7 +567,7 @@ aws s3api put-bucket-cors --bucket "${bucket}" --cors-configuration "$(cat cors.
                 </CacheContainer>
             </CacheRow>
             <FooterRow>
-                <Tooltip id={"github-header"} css={center} clickToPin={false} arrow placement="bottom" title="See this project's open issues on GitHub">
+                <Tooltip id={"github-header"} center clickToPin={false} arrow placement="bottom" title="See this project's open issues on GitHub">
                     <GithubLabel>
                         <GithubIssuesLink />
                     </GithubLabel>

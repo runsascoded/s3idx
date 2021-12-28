@@ -19,7 +19,13 @@ export type LiftedState = {
     setClicked: Set<boolean>
 }
 export type CSS = { [k: string]: { [k: string]: string | number | undefined } }
-export type Props = mui.TooltipProps & { id: string, css?: CSS, clickToPin?: boolean }
+export type ExtraProps = {
+    id: string
+    css?: CSS
+    center?: boolean
+    clickToPin?: boolean
+}
+export type Props = mui.TooltipProps & ExtraProps
 export type OuterProps = Props & MakeTooltipProps
 export type InnerProps = OuterProps & LiftedState
 
@@ -30,6 +36,18 @@ export const OuterTooltip = (props: OuterProps) => {
     // configures tooltip styles
     const [clicked, setClicked] = useState(false)
     return <InnerTooltip {...props} {...{ clicked, setClicked, }}/>
+}
+
+function mergeCss(l: CSS, r: CSS) {
+    entries(r).forEach(([ k, v, ]) => {
+        if (k in l) {
+            entries(v).forEach(([ k2, v2 ]) => {
+                l[k][k2] = v2
+            })
+        } else {
+            l[k] = v
+        }
+    })
 }
 
 export const InnerTooltip = muiStyled(
@@ -52,12 +70,12 @@ export const InnerTooltip = muiStyled(
                 }
             }
         }
-        const handleTooltipOpen = (e: any) => {
+        const handleTooltipOpen = () => {
             // console.log("Tooltip: open", id)
             setOpen(true);
             handleOpen(id)
         }
-        const handleTooltipClose = (e: any) => {
+        const handleTooltipClose = () => {
             // console.log("Tooltip: close", id)
             if (clicked) {
                 // console.log("  not propagating tooltip close due to clicked state")
@@ -102,7 +120,7 @@ export const InnerTooltip = muiStyled(
                 </mui.Tooltip>
         )
 })(
-    ({ theme, clicked, css, }) => {
+    ({ theme, clicked, center, css, }) => {
         let baseStyle: CSS = {
             // Accessing `clicked` here (since it is a prop of `InnerTooltip`) is the reason for the existence of
             // `OuterTooltip`, which declares `clicked` as state and makes it a prop of `InnerTooltip`. Normally `clicked`
@@ -118,15 +136,8 @@ export const InnerTooltip = muiStyled(
                 color: theme.palette.common.black,
             },
         }
-        entries(css).forEach(([ k, v, ]) => {
-            if (k in baseStyle) {
-                entries(v).forEach(([ k2, v2 ]) => {
-                    baseStyle[k][k2] = v2
-                })
-            } else {
-                baseStyle[k] = v
-            }
-        })
+        if (center) mergeCss(baseStyle, centerCss)
+        if (css) mergeCss(baseStyle, css)
         return baseStyle
     }
 );
@@ -136,7 +147,7 @@ export function makeTooltip(): FC<Props> {
     const [ openTooltipId, setOpenTooltipId,] = useState<string | null>(null)
 
     const clickHandler = useCallback(
-        e => {
+        () => {
             // console.log("body click:", e)
             setOpenTooltipId(null)
         },
@@ -175,8 +186,4 @@ export function makeTooltip(): FC<Props> {
     return Tooltip
 }
 
-export const center = {'&': { textAlign: 'center' }}
-
-export default {
-    makeTooltip, center
-}
+export const centerCss = {'&': { textAlign: 'center' }}
