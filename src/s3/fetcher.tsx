@@ -7,7 +7,7 @@ import {
     Size,
 } from "aws-sdk/clients/s3";
 import moment, {Duration, DurationInputArg2, Moment} from "moment";
-import AWS from "aws-sdk";
+import S3 from "aws-sdk/clients/s3"
 import {CredentialsOptions} from "aws-sdk/lib/credentials";
 import {Endpoint} from "aws-sdk/lib/endpoint";
 
@@ -112,7 +112,7 @@ export class Fetcher {
     pageSize: number
     pagePromises: Promise<ListObjectsV2Output>[] = []
     cacheCb?: (cache: Cache) => void
-    s3?: AWS.S3
+    s3?: S3
     authenticated: boolean
     cache?: Cache
     cacheKey: string
@@ -125,7 +125,6 @@ export class Fetcher {
             bucket,
             region,
             key,
-            IdentityPoolId,
             credentials,
             s3BucketEndpoint,  // TODO: remove
             endpoint,
@@ -136,7 +135,6 @@ export class Fetcher {
             bucket: string,
             region?: string,
             key?: string,
-            IdentityPoolId?: string,
             credentials?: CredentialsOptions
             s3BucketEndpoint?: boolean
             endpoint?: string | Endpoint
@@ -148,25 +146,14 @@ export class Fetcher {
         this.bucket = bucket
         key =  key?.replace(/\/$/, '')
         this.key = key
-        this.pageSize = pageSize || 1000
-        this.authenticated = !!IdentityPoolId || !!credentials
+        pageSize = pageSize || 1000
+        this.pageSize = pageSize
+        this.authenticated = !!credentials
         this.cacheCb = cacheCb
-        this.s3BucketEndpoint = s3BucketEndpoint === false ? false : true
+        s3BucketEndpoint = s3BucketEndpoint === false ? false : true
+        this.s3BucketEndpoint = s3BucketEndpoint
         this.endpoint = endpoint
-
-        if (region) {
-            AWS.config.region = region;
-        }
-        if (IdentityPoolId) {
-            if (credentials) {
-                throw Error("Provide `IdentityPoolId` xor `credentials`")
-            }
-            AWS.config.credentials = new AWS.CognitoIdentityCredentials({ IdentityPoolId, })
-        } else if (credentials) {
-            AWS.config.credentials = credentials
-        }
-        AWS.config.s3BucketEndpoint = this.s3BucketEndpoint
-        this.s3 = new AWS.S3({ endpoint });
+        this.s3 = new S3({ endpoint, credentials, region, s3BucketEndpoint });
         const cacheKeyObj = key ? { bucket, key } : { bucket }
         this.cacheKey = JSON.stringify(cacheKeyObj)
         const cacheStr = localStorage.getItem(this.cacheKey)
